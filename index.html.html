@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Palme Files - Murder Investigation Network Analysis</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a0a0f;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        .sidebar {
+            width: 420px;
+            background: linear-gradient(180deg, #0f0f15 0%, #0a0a0f 100%);
+            border-right: 1px solid #1a1111;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-header {
+            padding: 24px 24px 0 24px;
+            background: linear-gradient(135deg, #1a0505 0%, #0a0a0f 100%);
+            border-bottom: 1px solid #331111;
+        }
+        
+        .sidebar-header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff4444, #ff8844);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0;
+            letter-spacing: 2px;
+            padding-bottom: 4px;
+        }
+        
+        .sidebar-header .collapsible-content {
+            padding-bottom: 20px;
+        }
+
+        .sidebar-header .subtitle {
+            color: #666;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            padding-top: 4px;
+        }
+
+        .sidebar-header .version {
+            color: #442222;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 6px;
+        }
+        
+        .cluster-filters {
+            padding: 0;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        
+        .cluster-filters h3 {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #555;
+            margin-bottom: 0;
+            padding: 14px 16px 10px 16px;
+        }
+
+        .cluster-filters .collapsible-content {
+            padding: 0 16px 14px 16px;
+        }
+        
+        .filter-btn {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 3px;
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid #222;
+            border-radius: 3px;
+            background: #0d0d0d;
+            color: #777;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        
+        .filter-btn:hover {
+            background: #151515;
+            border-color: #444;
+        }
+        
+        .filter-btn.active {
+            background: #1a0808;
+            border-color: #ff4444;
+            color: #ff6666;
+        }
+        
+        .node-details {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .node-details::-webkit-scrollbar {
+            width: 4px;
+        }
+        .node-details::-webkit-scrollbar-track {
+            background: #0a0a0f;
+        }
+        .node-details::-webkit-scrollbar-thumb {
+            background: #331111;
+            border-radius: 2px;
+        }
+        
+        .node-details .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #333;
+        }
+        
+        .node-details .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.2;
+        }
+
+        .node-details .empty-state p {
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+        
+        .node-card {
+            display: none;
+        }
+        
+        .node-card.visible {
+            display: block;
+        }
+        
+        .node-card .node-header {
+            margin-bottom: 16px;
+        }
+        
+        .node-card .node-category {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 3px 8px;
+            border-radius: 2px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        
+        .node-card .node-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-family: 'Crimson Pro', serif;
+            letter-spacing: 0.5px;
+        }
+        
+        .node-card .node-subtitle {
+            font-size: 11px;
+            color: #666;
+            font-family: 'Crimson Pro', serif;
+            font-style: italic;
+        }
+        
+        .node-card .section {
+            margin-bottom: 16px;
+        }
+        
+        .node-card .section-title {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #ff6666;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .node-card .section-title::before {
+            content: '';
+            width: 12px;
+            height: 1px;
+            background: #ff4444;
+        }
+        
+        .node-card .description {
+            font-size: 11px;
+            line-height: 1.7;
+            color: #999;
+            font-family: 'Crimson Pro', serif;
+        }
+        
+        .node-card .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        
+        .node-card .tag {
+            font-size: 9px;
+            padding: 3px 8px;
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 2px;
+            color: #888;
+        }
+        
+        .node-card .event-list {
+            list-style: none;
+        }
+        
+        .node-card .event-list li {
+            font-size: 10px;
+            color: #888;
+            padding: 6px 0;
+            border-bottom: 1px solid #111;
+            padding-left: 14px;
+            position: relative;
+            font-family: 'Crimson Pro', serif;
+        }
+        
+        .node-card .event-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 4px;
+            background: #ff4444;
+            border-radius: 50%;
+        }
+        
+        .node-card .connection-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        
+        .node-card .connection-btn {
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 4px 10px;
+            background: #0d0505;
+            border: 1px solid #221111;
+            border-radius: 2px;
+            color: #ff8888;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .node-card .connection-btn:hover {
+            background: #1a0808;
+            border-color: #ff4444;
+        }
+
+        .node-card .source-list {
+            list-style: none;
+        }
+
+        .node-card .source-list li {
+            font-size: 9px;
+            padding: 4px 0;
+            border-bottom: 1px solid #111;
+        }
+
+        .node-card .source-list li a {
+            color: #668;
+            text-decoration: none;
+            font-family: 'JetBrains Mono', monospace;
+            transition: color 0.2s;
+        }
+
+        .node-card .source-list li a:hover {
+            color: #aab;
+        }
+
+        .node-card .note-box {
+            background: #110505;
+            border: 1px solid #331111;
+            border-left: 2px solid #ff4444;
+            padding: 10px 12px;
+            margin-top: 12px;
+        }
+
+        .node-card .note-box p {
+            font-size: 10px;
+            color: #ff8888;
+            font-family: 'Crimson Pro', serif;
+            font-style: italic;
+            line-height: 1.6;
+        }
+
+        .node-card .flag-box {
+            background: #0a0a05;
+            border: 1px solid #332211;
+            border-left: 2px solid #f59e0b;
+            padding: 10px 12px;
+            margin-top: 8px;
+        }
+
+        .node-card .flag-box p {
+            font-size: 10px;
+            color: #f5c462;
+            font-family: 'Crimson Pro', serif;
+            font-style: italic;
+            line-height: 1.6;
+        }
+        
+        .network-container {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(ellipse at center, #0f0f18 0%, #0a0a0f 100%);
+        }
+        
+        #network-svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .instructions {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            padding: 8px 14px;
+            border-radius: 2px;
+            font-size: 9px;
+            color: #555;
+            border: 1px solid #1a1a1a;
+            letter-spacing: 0.5px;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            padding: 14px 16px;
+            border-radius: 2px;
+            border: 1px solid #1a1a1a;
+        }
+        
+        .legend h4 {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #444;
+            margin-bottom: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+            font-size: 9px;
+            color: #777;
+        }
+        
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .stats {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            padding: 10px 14px;
+            border-radius: 2px;
+            font-size: 9px;
+            color: #444;
+            border: 1px solid #1a1a1a;
+            letter-spacing: 0.5px;
+        }
+        
+        .stats span {
+            color: #ff6666;
+        }
+        
+        /* Node styling */
+        .node {
+            cursor: pointer;
+        }
+        
+        .node circle.outer {
+            fill: none;
+            stroke-width: 2;
+            opacity: 0.3;
+        }
+        
+        .node circle.inner {
+            stroke-width: 1.5;
+            stroke: rgba(255,255,255,0.6);
+        }
+        
+        .node text.icon {
+            text-anchor: middle;
+            dominant-baseline: central;
+            font-size: 13px;
+            font-weight: bold;
+            fill: #000;
+            pointer-events: none;
+        }
+        
+        .node text.label {
+            text-anchor: middle;
+            font-size: 10px;
+            fill: rgba(255,255,255,0.9);
+            pointer-events: none;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.3px;
+            paint-order: stroke;
+            stroke: #0a0a0f;
+            stroke-width: 3px;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        
+        .node .hover-label-bg {
+            fill: rgba(10, 10, 15, 0.92);
+            rx: 4;
+            ry: 4;
+            stroke: rgba(255,68,68,0.3);
+            stroke-width: 1;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .node .hover-label-name {
+            text-anchor: middle;
+            font-size: 13px;
+            font-weight: 600;
+            fill: #ffffff;
+            pointer-events: none;
+            font-family: 'Crimson Pro', serif;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .node .hover-label-subtitle {
+            text-anchor: middle;
+            font-size: 9px;
+            fill: rgba(255,136,136,0.9);
+            pointer-events: none;
+            font-family: 'Crimson Pro', serif;
+            font-style: italic;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .link {
+            stroke-opacity: 0.4;
+            stroke-width: 1;
+        }
+        
+        .link.highlighted {
+            stroke-opacity: 1;
+            stroke-width: 2.5;
+        }
+        
+        .link.dimmed {
+            stroke-opacity: 0.05;
+        }
+        
+        .cluster-label {
+            font-size: 9px;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .cluster-bg {
+            fill-opacity: 0.03;
+            stroke-opacity: 0.15;
+            stroke-width: 1;
+            stroke-dasharray: 4 4;
+        }
+
+        .collapse-toggle {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            width: 26px;
+            height: 26px;
+            background: rgba(255,68,68,0.08);
+            border: 1px solid rgba(255,68,68,0.2);
+            border-radius: 3px;
+            color: #ff6666;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .collapse-toggle:hover {
+            background: rgba(255,68,68,0.15);
+            border-color: rgba(255,68,68,0.4);
+        }
+
+        .collapsible-section {
+            position: relative;
+        }
+
+        .collapsible-content {
+            overflow: hidden;
+            transition: all 0.25s ease;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin: 0;
+        }
+
+        .collapsible-content:not(.collapsed) {
+            max-height: 500px;
+            opacity: 1;
+        }
+
+        .collapsed-label {
+            display: none;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #444;
+            padding: 6px 0;
+            cursor: pointer;
+        }
+
+        .collapsible-content.collapsed + .collapsed-label {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header collapsible-section">
+                <button class="collapse-toggle" onclick="toggleSection(this)" title="Collapse">−</button>
+                <h1>THE PALME FILES</h1>
+                <div class="collapsible-content" id="header-content">
+                    <div class="subtitle">Murder Investigation Network Analysis</div>
+                    <div class="version">Theory: The SA / Safari Club / Longreach Conspiracy — High-Confidence Nodes Only</div>
+                </div>
+            </div>
+            
+            <div class="cluster-filters collapsible-section">
+                <button class="collapse-toggle" onclick="toggleSection(this)" title="Collapse">−</button>
+                <h3>Filter by Cluster</h3>
+                <div class="collapsible-content" id="filters-content">
+                    <div id="filters"></div>
+                </div>
+            </div>
+            
+            <div class="node-details">
+                <div class="empty-state" id="empty-state">
+                    <div class="icon">&#9673;</div>
+                    <p>Select a node to view details</p>
+                </div>
+                <div class="node-card" id="node-card">
+                    <div class="node-header">
+                        <span class="node-category" id="node-category"></span>
+                        <div class="node-name" id="node-name"></div>
+                        <div class="node-subtitle" id="node-subtitle"></div>
+                    </div>
+                    <div class="section">
+                        <div class="section-title">Background</div>
+                        <p class="description" id="node-description"></p>
+                    </div>
+                    <div class="section">
+                        <div class="section-title">Affiliations</div>
+                        <div class="tag-list" id="node-affiliations"></div>
+                    </div>
+                    <div class="section">
+                        <div class="section-title">Key Events</div>
+                        <ul class="event-list" id="node-events"></ul>
+                    </div>
+                    <div class="section">
+                        <div class="section-title">Network Connections</div>
+                        <div class="connection-list" id="node-connections"></div>
+                    </div>
+                    <div class="section" id="sources-section" style="display:none">
+                        <div class="section-title">Sources</div>
+                        <ul class="source-list" id="node-sources"></ul>
+                    </div>
+                    <div id="node-note-container"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="network-container">
+            <svg id="network-svg"></svg>
+            <div class="instructions">
+                Click nodes for details &bull; Drag to reposition &bull; Scroll to zoom
+            </div>
+            <div class="legend">
+                <h4>Cluster Legend</h4>
+                <div id="legend-items"></div>
+            </div>
+            <div class="stats">
+                <span id="node-count">0</span> nodes &bull; <span id="link-count">0</span> connections
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================
+    // COLLAPSIBLE SECTIONS
+    // ============================================
+    function toggleSection(btn) {
+        const section = btn.closest('.collapsible-section');
+        const content = section.querySelector('.collapsible-content');
+        const isCollapsed = content.classList.toggle('collapsed');
+        btn.textContent = isCollapsed ? '+' : '−';
+        btn.title = isCollapsed ? 'Expand' : 'Collapse';
+    }
+
+    // ============================================
+    // NETWORK DATA — The Palme Files
+    // Theory: SA / Safari Club / Longreach Conspiracy
+    // Removed: Low-probability nodes (Hahne, Brenneke)
+    // Added: P.W. Botha (completes command chain)
+    // Suspect markers: Potential shooters identified
+    // ============================================
+    
+    const clusters = {
+        foreign_covert: { 
+            name: 'SA Covert Operations', 
+            color: '#ef4444', 
+            description: 'South African intelligence, military and death squad operations with documented motive and capability'
+        },
+        swedish_facilitator: { 
+            name: 'Swedish Facilitators', 
+            color: '#3b82f6', 
+            description: 'Swedish nationals recruited by or connected to foreign intelligence networks'
+        },
+        institutional_failure: { 
+            name: 'Institutional Failure', 
+            color: '#f59e0b', 
+            description: 'Investigation management and disinformation that steered the case away from the SA thread'
+        },
+        intelligence: { 
+            name: 'Intelligence Networks', 
+            color: '#8b5cf6', 
+            description: 'Safari Club, SSC authorizations, and covert frameworks connecting national intelligence services'
+        },
+        arms_finance: { 
+            name: 'Arms & Finance', 
+            color: '#dc2626', 
+            description: 'Iran-Contra, BCCI, and weapons trafficking networks threatened by Palme'
+        },
+        gladio: { 
+            name: 'Gladio / Stay-Behind', 
+            color: '#f97316', 
+            description: 'NATO secret armies, P2, and anti-communist networks'
+        }
+    };
+    
+    const nodes = [
+        // ============================================
+        // TARGETS
+        // ============================================
+        {
+            id: 'palme',
+            name: 'Olof Palme',
+            cluster: 'target',
+            category: 'target',
+            subtitle: 'Swedish Prime Minister (1927–1986)',
+            description: 'Swedish Prime Minister assassinated on February 28, 1986 while walking home from a cinema with his wife Lisbeth. Shot once in the back at close range on Sveavägen, central Stockholm. His murder remains officially unsolved. Palme was a fierce opponent of apartheid South Africa, a critic of U.S. foreign policy (particularly Vietnam), and his government investigated Swedish arms deals connected to BCCI. His positions created enemies across multiple covert networks simultaneously. On February 21, 1986 — one week before his death — he delivered a keynote address to the Swedish People\'s Parliament Against Apartheid, declaring: "Apartheid cannot be reformed, it has to be eliminated."',
+            affiliations: ['Swedish Social Democratic Party', 'Anti-Apartheid Movement', 'Swedish Government', 'UN Mediator Iran-Iraq War'],
+            events: [
+                'Prime Minister 1969–1976, 1982–1986',
+                'Vocal critic of U.S. Vietnam War',
+                'Strong opponent of South African apartheid',
+                'Feb 21, 1986: Keynote at People\'s Parliament Against Apartheid',
+                'Feb 28, 1986: Assassinated on Sveavägen, Stockholm',
+                'Sweden\'s secret ANC funding channeled through Switzerland',
+                'Investigated arms deals connected to BCCI'
+            ],
+            sources: [
+                { title: 'Wikipedia — Assassination of Olof Palme', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' },
+                { title: 'Wikipedia — Olof Palme', url: 'https://en.wikipedia.org/wiki/Olof_Palme' }
+            ]
+        },
+        {
+            id: 'carlsson_b',
+            name: 'Bernt Carlsson',
+            cluster: 'target',
+            category: 'target',
+            subtitle: 'UN Commissioner for Namibia — Killed on Pan Am 103',
+            description: 'Swedish diplomat and close adviser to Olof Palme, often called one of "the three musketeers" of the Socialist International alongside Palme. After Palme\'s murder, Carlsson was appointed UN Commissioner for Namibia in 1987 and began working with SWAPO to achieve independence for the territory illegally occupied by apartheid South Africa. On December 21, 1988, Carlsson boarded Pan Am Flight 103 in London bound for New York and died when the plane was bombed over Lockerbie, Scotland. Craig Williamson is alleged to have engineered Carlsson\'s death. His inclusion demonstrates that Palme was not a one-off target — the same SA network continued eliminating figures from the anti-apartheid circle after 1986.',
+            affiliations: ['United Nations', 'Socialist International', 'SWAPO liaison', 'Palme inner circle'],
+            events: [
+                'Close adviser to Olof Palme during Iran-Iraq mediation',
+                '1987: Appointed UN Commissioner for Namibia',
+                'Worked with SWAPO against SA occupation of Namibia',
+                'Dec 21, 1988: Died on Pan Am Flight 103 (Lockerbie)',
+                'Williamson alleged to have engineered his death',
+                'Third "musketeer" of anti-apartheid Socialist International'
+            ],
+            sources: [
+                { title: 'Wikispooks — Craig Williamson (Carlsson section)', url: 'https://wikispooks.com/wiki/Craig_Williamson' },
+                { title: 'Wikipedia — Bernt Carlsson', url: 'https://en.wikipedia.org/wiki/Bernt_Carlsson' }
+            ],
+            note: 'PATTERN: Carlsson\'s death on Pan Am 103 extends the SA operational timeline past Palme. The same network allegedly continued targeting the anti-apartheid circle for at least two more years.'
+        },
+        
+        // ============================================
+        // SA COVERT OPERATIONS CLUSTER
+        // ============================================
+        {
+            id: 'botha_pw',
+            name: 'P.W. Botha',
+            cluster: 'foreign_covert',
+            category: 'intelligence',
+            subtitle: 'State President of South Africa (1984–1989)',
+            description: 'State President of South Africa during the Palme assassination. As chairman of the State Security Council (SSC), Botha presided over the body that authorized Operation Slingervel in November 1985 — the covert operation framework that led to "urgent action" being recommended against Olof Palme. Under his leadership, the SSC systematically expanded extraterritorial operations against apartheid\'s enemies, including the assassination of Ruth First (1982), the Schoon family letter-bombings (1984), and multiple ANC office bombings abroad. The SSC system was designed for collective decision-making with plausible deniability — no single individual\'s signature on kill orders, but institutional authorization was clear. The Slingervel document, produced under his government, contained the passage recommending urgent action against Palme, with a senior official\'s handwritten "Agreed!" annotation.',
+            affiliations: ['National Party', 'State Security Council (Chairman)', 'South African Government', 'SA Military Intelligence oversight'],
+            events: [
+                'Prime Minister 1978–1984, State President 1984–1989',
+                'Chaired State Security Council throughout his tenure',
+                'Oversaw expansion of extraterritorial covert operations',
+                'Nov 1985: SSC authorized Operation Slingervel under his chairmanship',
+                'Slingervel document: "urgent action" against Palme recommended',
+                'Ruth First assassination (1982) — under his government',
+                'Schoon family assassinations (1984) — under his government',
+                'ANC London bombing (1982) — under his government',
+                'System designed for collective authorization, individual deniability',
+                '1989: Resigned after stroke, replaced by de Klerk'
+            ],
+            sources: [
+                { title: 'Wikipedia — P. W. Botha', url: 'https://en.wikipedia.org/wiki/P._W._Botha' },
+                { title: 'Wikispooks — Craig Williamson (Slingervel section)', url: 'https://wikispooks.com/wiki/Craig_Williamson' }
+            ],
+            note: 'COMMAND CHAIN TOP: Botha anchors the authorization chain at the political level. The SSC system he chaired produced documented authorization for action against Palme. Whether he personally ordered the killing is unknowable, but institutional responsibility under his leadership is clear.'
+        },
+        {
+            id: 'williamson',
+            name: 'Craig Williamson',
+            cluster: 'foreign_covert',
+            category: 'operative',
+            subtitle: 'SA Police Spy — "Long Reach" Operations Chief',
+            description: 'South African police major and architect of Operation Longreach, a covert military intelligence front specifically designed to target apartheid\'s enemies abroad. In the late 1970s Williamson infiltrated the International University Exchange Fund (IUEF) in Geneva, rising to deputy director, while making high-level contacts in Sweden including figures from Palme\'s own office. He personally recruited Bertil Wedin as a South African intelligence asset. Swedish police confirmed Williamson was in Stockholm during the February 21, 1986 anti-apartheid conference — one week before Palme\'s murder. Peter Caselton stated on SABC that the kill order came through an intelligence operation headed by Williamson. Named by Eugene de Kock in the Pretoria Supreme Court in 1996 for Palme\'s murder, along with Wedin, White and Allen. Granted TRC amnesty in 1999 for the London ANC bombing and the letter-bomb murders of Ruth First and the Schoons, but never charged over Palme. Also alleged to have engineered the death of Bernt Carlsson on Pan Am 103.',
+            affiliations: ['South African Police', 'Long Reach / Longreach', 'State Security Council', 'Safari Club', 'Vlakplaas', 'IUEF Geneva (infiltrated)'],
+            events: [
+                'Late 1970s: Infiltrated IUEF Geneva — contact with Palme\'s office network',
+                'c.1980: Personally recruited Bertil Wedin as SA intelligence asset',
+                '1982: ANC London office bombing (TRC amnesty granted)',
+                '1982: Letter-bomb killing of Ruth First, Mozambique',
+                '1984: Letter-bomb killing of Jeanette Schoon and daughter Katryn',
+                'Feb 21, 1986: Confirmed in Stockholm for anti-apartheid conference',
+                'Feb 28, 1986: Palme murdered one week later',
+                '1986: Suspected involvement in ANC Stockholm office bombing',
+                '1996: Named by de Kock in Pretoria Supreme Court for Palme murder',
+                '1996: Caselton stated kill order came through Williamson\'s operation',
+                'Syphoned IUEF funds to establish Longreach (per de Kock)',
+                'Alleged role in Bernt Carlsson\'s death (Lockerbie, 1988)',
+                'Never charged in connection with Palme assassination'
+            ],
+            sources: [
+                { title: 'Wikispooks — Craig Williamson', url: 'https://wikispooks.com/wiki/Craig_Williamson' },
+                { title: 'Wikipedia — Craig Williamson', url: 'https://en.wikipedia.org/wiki/Craig_Williamson' },
+                { title: 'Washington Post (1996) — New Tales of Old Killing', url: 'https://www.washingtonpost.com/archive/politics/1996/10/04/new-tales-of-old-killing-stir-intrigue-in-s-africa/b08c46fb-34d6-430e-90c9-d9d39ee549e7/' },
+                { title: 'Daily Maverick — SA Connection', url: 'https://www.dailymaverick.co.za/article/2020-06-10-olaf-palme-assassination-the-sa-connection/' }
+            ],
+            note: 'CRITICAL NODE: Williamson had personal access to Palme\'s office network through IUEF, was in Stockholm one week before the murder, was named in court by multiple SA operatives, and his Longreach unit was specifically designed for this type of operation.',
+            suspect: true
+        },
+        {
+            id: 'vlakplaas',
+            name: 'Vlakplaas',
+            cluster: 'foreign_covert',
+            category: 'organization',
+            subtitle: 'SA Police Death Squad — Farm C1, Pretoria',
+            description: 'South African Police death squad farm (officially "Farm C1") outside Pretoria. Central command for apartheid-era assassinations, kidnappings, and state terror. Responsible for over 100 assassinations. Unit members were trained for international operations. Provided the institutional base from which operatives like Williamson, de Kock, and Coetzee operated. Exposed publicly by Dirk Coetzee in 1989.',
+            affiliations: ['South African Police', 'State Security Council', 'Civil Cooperation Bureau'],
+            events: [
+                'Established 1979 as covert counter-insurgency operations unit',
+                'Responsible for 100+ assassinations',
+                'International operations capability documented',
+                'Exposed by Dirk Coetzee (1989)',
+                'Multiple operatives named in Palme murder'
+            ],
+            sources: [
+                { title: 'Wikipedia — Vlakplaas', url: 'https://en.wikipedia.org/wiki/Vlakplaas' }
+            ]
+        },
+        {
+            id: 'coetzee',
+            name: 'Dirk Coetzee',
+            cluster: 'foreign_covert',
+            category: 'operative',
+            subtitle: 'Vlakplaas Commander — First Whistleblower',
+            description: 'Former commander of Vlakplaas death squad who became the first apartheid-era whistleblower in 1989, exposing the existence of SA government death squads. In 1996, after de Kock named Williamson, Coetzee relayed information from Riaan Stander identifying Anthony White (former Selous Scout and Longreach founder member) as the person who pulled the trigger in the Palme assassination. This is the competing narrative to Caselton\'s version (which named Wedin). Both versions name Williamson as commander. Coetzee sought TRC amnesty for murder charges.',
+            affiliations: ['Vlakplaas', 'South African Police', 'ANC (after defection)'],
+            events: [
+                'Commanded Vlakplaas operations',
+                '1989: First to publicly expose SA death squads',
+                '1996: Relayed Stander\'s version naming Anthony White as trigger man',
+                'Truth and Reconciliation testimony',
+                'Sought TRC amnesty'
+            ],
+            sources: [
+                { title: 'Wikipedia — Dirk Coetzee', url: 'https://en.wikipedia.org/wiki/Dirk_Coetzee_(police_officer)' },
+                { title: 'Mail & Guardian (1996) — Palme\'s murder still a mystery', url: 'https://mg.co.za/article/1996-10-04-palmes-murder-still-a-mystery/' }
+            ]
+        },
+        {
+            id: 'dekock',
+            name: 'Eugene de Kock',
+            cluster: 'foreign_covert',
+            category: 'assassin',
+            subtitle: '"Prime Evil" — Vlakplaas Commander',
+            description: 'Vlakplaas operative convicted of 89 charges including 6 murders, sentenced to 212 years. In September 1996 he told the Pretoria Supreme Court that Craig Williamson was involved in Palme\'s murder. IMPORTANT: De Kock had no direct knowledge of the Palme assassination. He learned about SA involvement secondhand from Philip Powell (security police "analyst" and gun runner), who told him that two of Williamson\'s close associates — Jonty and Cindy Leontsinis — knew who carried out the killing. De Kock later explicitly excluded Anthony White from involvement (contradicting Coetzee/Stander) and supported the version pointing at Wedin.',
+            affiliations: ['Vlakplaas', 'South African Police', 'Civil Cooperation Bureau'],
+            events: [
+                'Commanded Vlakplaas after Coetzee',
+                'Convicted on 89 criminal charges including 6 murders',
+                'Sentenced to 212 years imprisonment',
+                'Sept 1996: Named Williamson for Palme murder in Pretoria Supreme Court',
+                'Had NO direct knowledge — learned from Philip Powell',
+                'Powell said Leontsinis associates knew who did it',
+                'Later excluded Anthony White from involvement',
+                'TRC amnesty granted for London ANC bombing (with Williamson, Caselton)'
+            ],
+            sources: [
+                { title: 'Wikipedia — Eugene de Kock', url: 'https://en.wikipedia.org/wiki/Eugene_de_Kock' },
+                { title: 'Washington Post (1996)', url: 'https://www.washingtonpost.com/archive/politics/1996/10/04/new-tales-of-old-killing-stir-intrigue-in-s-africa/b08c46fb-34d6-430e-90c9-d9d39ee549e7/' },
+                { title: 'News24 — Explainer', url: 'https://www.news24.com/opinions/analysis/explainer-how-south-africa-became-linked-to-the-murder-of-swedens-pm-in-1986-20200610' }
+            ],
+            flag: 'CREDIBILITY NOTE: De Kock\'s Palme testimony is secondhand hearsay via Philip Powell. His other confessions (own crimes) were deemed credible by courts, lending weight to his broader claims about SA involvement, but he was not a direct participant in the Palme operation.'
+        },
+        {
+            id: 'thirion',
+            name: 'Maj Gen Chris Thirion',
+            cluster: 'foreign_covert',
+            category: 'intelligence',
+            subtitle: 'SA Military Intelligence',
+            description: 'South African military intelligence officer who orchestrated covert operations. His unit produced the October 1985 intelligence report confirming the Anti-Apartheid Movement planned to meet in Stockholm in February 1986 and noted Palme was "at the forefront of European action against South Africa." The report contained the critical paragraph recommending that "action proposed previously against Mr Palme should now be given urgent attention." Connected to the Safari Club as SA military intelligence representative.',
+            affiliations: ['South African Military Intelligence', 'State Security Council', 'Safari Club'],
+            events: [
+                'Directed SA military intelligence cross-border operations',
+                'Oct 1985: Unit produced intelligence report on Palme/AAM Stockholm meeting',
+                'Report noted Palme "at the forefront of European action against SA"',
+                'Coordinated with international intelligence agencies via Safari Club',
+                'Oversaw covert action programs in Europe and Africa'
+            ],
+            sources: [
+                { title: 'Wikispooks — Craig Williamson (Slingervel section)', url: 'https://wikispooks.com/wiki/Craig_Williamson' }
+            ]
+        },
+        {
+            id: 'longreach',
+            name: 'Operation Longreach',
+            cluster: 'foreign_covert',
+            category: 'organization',
+            subtitle: 'Williamson\'s MI Front — Foreign Assassination Unit',
+            description: 'Covert military intelligence front organization established by Craig Williamson, funded partly through syphoned IUEF funds, specifically designed to target apartheid\'s enemies abroad. Longreach reported to Brigadier "Tolletjie" Botha. Registered as "Longreach (Pty) Ltd" — a commercial front for deniable operations. Former Vlakplaas agent Riaan Stander confirmed to a Swedish journalist in 1995 that Longreach was the organizational vehicle behind the Palme assassination. Multiple sources from within SA intelligence have named Longreach as the operational unit. Key personnel included Williamson (commander), Anthony White (former Selous Scout), Peter Caselton, and Nigel Barnett. Some operations were coordinated through the Casalee Group in Antwerp, later relocated to England as Defence Company Ltd (Defco).',
+            affiliations: ['Craig Williamson', 'SA Military Intelligence', 'State Security Council', 'Brigadier "Tolletjie" Botha'],
+            events: [
+                'Established by Williamson as foreign operations unit',
+                'Funded partly through syphoned IUEF funds',
+                'Reported to Brigadier "Tolletjie" Botha',
+                'Registered as "Longreach (Pty) Ltd" — commercial front',
+                'Personnel: Williamson, White, Caselton, Barnett',
+                'European operations via Casalee Group (Antwerp) / Defco (England)',
+                '1995: Stander named Longreach specifically for Palme operation',
+                'Provided deniability layer between SA govt and assassinations'
+            ],
+            sources: [
+                { title: 'Wikispooks — Craig Williamson', url: 'https://wikispooks.com/wiki/Craig_Williamson' },
+                { title: 'Mail & Guardian (1996)', url: 'https://mg.co.za/article/1996-10-04-palmes-murder-still-a-mystery/' }
+            ],
+            note: 'OPERATIONAL UNIT: Multiple SA intelligence insiders name Longreach specifically as the vehicle for the Palme operation. It was the deniable layer between political authorization and execution.'
+        },
+        {
+            id: 'botha_t',
+            name: 'Brig. "Tolletjie" Botha',
+            cluster: 'foreign_covert',
+            category: 'intelligence',
+            subtitle: 'SA Military Intelligence — Longreach Handler',
+            description: 'South African Military Intelligence brigadier who served as the critical command link between the State Security Council\'s political authorization (Operation Slingervel) and Williamson\'s operational unit (Longreach). Botha personally briefed Williamson on what the SSC wanted done regarding Palme. His memorandum is part of the documentary trail. A handwritten instruction on one of his memoranda directed Williamson to observe military discipline — indicating some tension between military and police intelligence cultures but confirming the chain of command.',
+            affiliations: ['SA Military Intelligence', 'State Security Council', 'Longreach handler'],
+            events: [
+                'Personally briefed Williamson on SSC authorization (Slingervel)',
+                'Served as command link: SSC → Botha → Williamson → Longreach',
+                'Memorandum with handwritten military discipline instruction',
+                'Oversaw Longreach reporting chain'
+            ],
+            sources: [
+                { title: 'Wikispooks — Craig Williamson (Slingervel section)', url: 'https://wikispooks.com/wiki/Craig_Williamson' }
+            ],
+            note: 'CHAIN OF COMMAND: Botha fills the gap between political authorization (SSC/Slingervel) and operational execution (Williamson/Longreach). Without this node, the command chain has a missing link.'
+        },
+        {
+            id: 'white',
+            name: 'Anthony White',
+            cluster: 'foreign_covert',
+            category: 'assassin',
+            subtitle: 'Former Selous Scout — Longreach Founder Member',
+            description: 'Former Rhodesian Selous Scout and founder member of Williamson\'s Longreach. Described as "a ruthless killer for Ian Smith\'s Rhodesia" by the Mail & Guardian. Named by Dirk Coetzee (relaying Riaan Stander\'s account) as the person who pulled the trigger in the Palme assassination. However, de Kock and Peter Caselton later explicitly excluded White from involvement and pointed at Bertil Wedin instead. White admitted traveling to Sweden but categorically denied involvement in the murder. Was running a furniture factory in Beira, Mozambique in 1996. Richard Fair admitted flying into Mozambique with Nigel Barnett, White, and Caselton.',
+            affiliations: ['Rhodesian Selous Scouts', 'Longreach (Pty) Ltd', 'SA Military Intelligence'],
+            events: [
+                'Former Selous Scout in Rhodesian bush war',
+                'Founder member of Longreach',
+                'Admitted traveling to Sweden — denied Palme involvement',
+                '1996: Named by Coetzee (via Stander) as trigger man',
+                '1996: Excluded by de Kock and Caselton',
+                'Running furniture factory in Beira, Mozambique (1996)',
+                'Connected to Barnett, Caselton via Richard Fair testimony'
+            ],
+            sources: [
+                { title: 'Wikispooks — Anthony White', url: 'https://wikispooks.com/wiki/Anthony_White' },
+                { title: 'Mail & Guardian (1996)', url: 'https://mg.co.za/article/1996-10-04-palmes-murder-still-a-mystery/' },
+                { title: 'Washington Post (1996)', url: 'https://www.washingtonpost.com/archive/politics/1996/10/04/new-tales-of-old-killing-stir-intrigue-in-s-africa/b08c46fb-34d6-430e-90c9-d9d39ee549e7/' }
+            ],
+            note: 'COMPETING NARRATIVES: White is named by the Stander/Coetzee version but excluded by the de Kock/Caselton version (which points at Wedin). Both versions agree Williamson commanded the operation. White\'s inclusion maps the Longreach operational roster — these were the people available for foreign jobs.',
+            suspect: true
+        },
+        {
+            id: 'barnett',
+            name: 'Nigel Barnett',
+            cluster: 'foreign_covert',
+            category: 'operative',
+            subtitle: 'Born Leon van der Westhuizen — Swedish-Speaking SA Operative',
+            description: 'Born Leon van der Westhuizen in South Africa in May 1949, put up for adoption and renamed Henry William Bacon. His adoptive mother was Swedish-born and taught him fluent Swedish — making him one of the only SA operatives who could operate seamlessly in Sweden. Went into SA army and navy as a diving specialist, then joined the Rhodesian bush war where he became expert in interrogation, information gathering, and — critically — pseudo operations and disguise. Recruited to South Africa\'s Directorate of Covert Collection (DCC) by Colonel At Nel. Later appeared in Sweden under the name Nigel Barnett. Was catapulted into front ranks of Palme suspects once his background became known. Richard Fair, his business associate, admitted flying into Mozambique with Barnett, Anthony White, and Peter Caselton as pilot.',
+            affiliations: ['SA Directorate of Covert Collection (DCC)', 'SA Army/Navy', 'Rhodesian Bush War', 'Longreach network'],
+            events: [
+                'Born Leon van der Westhuizen, SA, May 1949',
+                'Adopted — renamed Henry William Bacon',
+                'Swedish-born adoptive mother taught him fluent Swedish',
+                'SA army and navy (diving specialist)',
+                'Rhodesian bush war: interrogation, pseudo operations, disguise',
+                'Recruited to DCC by Colonel At Nel',
+                'Appeared in Sweden as "Nigel Barnett"',
+                'Richard Fair admitted flying with Barnett, White, and Caselton'
+            ],
+            sources: [
+                { title: 'Daily Maverick — SA Connection (Barnett section)', url: 'https://www.dailymaverick.co.za/article/2020-06-10-olaf-palme-assassination-the-sa-connection/' }
+            ],
+            note: 'UNIQUE ASSET: Barnett is the only documented SA operative who spoke fluent Swedish, was trained in disguise and false identity, and was directly linked to both White and Caselton. His linguistic ability would have been essential for any operation requiring on-the-ground Swedish cover.',
+            suspect: true
+        },
+        {
+            id: 'stander',
+            name: 'Riaan Stander',
+            cluster: 'foreign_covert',
+            category: 'operative',
+            subtitle: 'Former Vlakplaas/Longreach Agent — Key Witness',
+            description: 'Former Vlakplaas agent hired by Williamson as a security guard at Longreach several months after Palme\'s death, then moved to the GMR company (owned by Giovanni Mario Ricci). Fired by Williamson for alleged fraud about a year later. Stander\'s version of the Palme assassination: Williamson sent Anthony White (former Selous Scout) to shoot Palme, assisted by a British operative, both Longreach operatives. Stander sometimes produced an air waybill he claimed was for silencers sent to operatives who were practicing marksmanship in the Seychelles. His 1995 testimony to a Swedish journalist is one of the earliest SA insider accounts naming Longreach specifically for the Palme operation.',
+            affiliations: ['Vlakplaas', 'Longreach (Pty) Ltd', 'GMR Company'],
+            events: [
+                'Hired by Williamson at Longreach months after Palme murder',
+                'Moved to GMR company (Giovanni Mario Ricci)',
+                'Fired by Williamson for alleged fraud',
+                '1995: Named Longreach as vehicle for Palme operation to Swedish journalist',
+                'Named White as trigger man',
+                'Produced air waybill allegedly for silencers sent to Seychelles',
+                'Version forms basis of Coetzee\'s 1996 public accusations'
+            ],
+            sources: [
+                { title: 'Mail & Guardian (1996)', url: 'https://mg.co.za/article/1996-10-04-palmes-murder-still-a-mystery/' }
+            ],
+            flag: 'CREDIBILITY NOTE: Stander was fired by Williamson for fraud, giving him potential motive for fabrication. However, his account is the earliest insider version and his naming of Longreach as the operational vehicle is corroborated by multiple other sources.'
+        },
+        {
+            id: 'ccb',
+            name: 'Civil Cooperation Bureau',
+            cluster: 'foreign_covert',
+            category: 'organization',
+            subtitle: 'SA Military Intelligence — External Operations',
+            description: 'South African military intelligence external operations structure responsible for deniable operations abroad. Eeben Barlow headed the Western Europe region from Frankfurt, Germany. The CCB interfaced with the Directorate of Covert Collection (DCC) and ran operations parallel to Williamson\'s police-origin Longreach. The CCB provides the military organizational layer connecting political authorization (SSC/Slingervel) to field operatives.',
+            affiliations: ['SA Military Intelligence', 'State Security Council', 'Directorate of Covert Collection'],
+            events: [
+                'Ran deniable SA operations abroad',
+                'Eeben Barlow headed Western Europe region from Frankfurt',
+                'Interfaced with DCC and Longreach',
+                'Provided parallel military channel to Williamson\'s police network'
+            ],
+            sources: [
+                { title: 'Wikipedia — Civil Cooperation Bureau', url: 'https://en.wikipedia.org/wiki/Civil_Cooperation_Bureau' }
+            ]
+        },
+        
+        // ============================================
+        // SWEDISH FACILITATORS CLUSTER
+        // ============================================
+        {
+            id: 'wedin',
+            name: 'Bertil Wedin',
+            cluster: 'swedish_facilitator',
+            category: 'operative',
+            subtitle: 'Swedish SA Intelligence Asset — Cyprus',
+            description: 'Swedish journalist turned South African intelligence operative. Personally recruited by Craig Williamson circa 1980. Admitted in English court proceedings that he worked for South African intelligence. Arrested in the 1982 London PAC office burglary alongside Peter Caselton — both fled to Cyprus on the same day as the 1982 ANC London bombing. Has lived in Kyrenia, Northern Cyprus since 1985.\n\nMost critically: According to TRC files, Wedin acted as the initiator of the PKK disinformation lead — faking a link between Kurdish terrorists and Palme\'s murder and feeding it to Turkish newspaper Hürriyet. This false lead became the main focus of the Swedish investigation for years. Wedin planted this story MORE THAN THREE MONTHS before the investigation publicly announced "PKK is behind the murder." That timeline is not coincidence — it is active post-murder operational cover.\n\nIn 1996, Peter Caselton told SABC that Palme\'s killer was "a Swede now living in Cyprus who once was a South African intelligence operative in London" — directly pointing at Wedin. Named in South African court alongside Williamson for Palme murder. Has consistently denied involvement.',
+            affiliations: ['South African Intelligence', 'Craig Williamson Network', 'Long Reach', 'Cyprus-based operations'],
+            events: [
+                'c.1980: Personally recruited by Craig Williamson in South Africa',
+                'Admitted SA intelligence work in English court',
+                '1982: Arrested in London PAC office burglary alongside Caselton',
+                '1982: Fled London to Cyprus same day as ANC bombing',
+                '1985: Settled in Kyrenia, Northern Cyprus',
+                '1986: Suspected ANC Stockholm office bombing',
+                '1986: Planted PKK disinformation in Hürriyet 3+ months before public announcement',
+                'PKK false lead consumed years of Swedish investigation resources',
+                '1996: Named as Palme\'s killer by Caselton on SABC',
+                '1996: Named in SA court alongside Williamson, White, Allen',
+                'Has consistently denied involvement'
+            ],
+            sources: [
+                { title: 'Wikispooks — Olof Palme/Assassination', url: 'https://wikispooks.com/wiki/Olof_Palme/Assassination' },
+                { title: 'Wikipedia — Assassination of Olof Palme (PKK)', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' },
+                { title: 'Washington Post (1996)', url: 'https://www.washingtonpost.com/archive/politics/1996/10/04/new-tales-of-old-killing-stir-intrigue-in-s-africa/b08c46fb-34d6-430e-90c9-d9d39ee549e7/' }
+            ],
+            note: 'SMOKING GUN BEHAVIOR: The PKK disinformation timeline — planted by Wedin before the Swedish investigation even publicly considered PKK — is the strongest single indicator of active post-murder cover operation. This is not incompetence. This is tradecraft.',
+            suspect: true
+        },
+        {
+            id: 'caselton',
+            name: 'Peter Caselton',
+            cluster: 'foreign_covert',
+            category: 'operative',
+            subtitle: 'SA Operative — Key Witness',
+            description: 'South African operative who worked directly with Craig Williamson and Bertil Wedin. Arrested alongside Wedin in the 1982 London PAC office burglary — pleaded guilty and received four years. Fled to Cyprus with Wedin on the same day as the 1982 ANC London bombing. Received TRC amnesty for the London bombing alongside Williamson and de Kock.\n\nIn 1996 Caselton told SABC that Palme\'s killer was "a Swede now living in Cyprus who once was a South African intelligence operative in London" — directly pointing at Wedin. He stated the kill order came through an intelligence operation headed by Williamson. Caselton also explicitly excluded Anthony White from involvement after speaking with de Kock in prison.\n\nRichard Fair admitted flying into Mozambique with Caselton, Anthony White, and Nigel Barnett.',
+            affiliations: ['Craig Williamson Network', 'Long Reach', 'South African Police', 'TRC Amnesty recipient'],
+            events: [
+                '1982: Arrested in London PAC office burglary alongside Wedin',
+                'Pleaded guilty — received 4 years imprisonment',
+                '1982: Fled London to Cyprus same day as ANC bombing',
+                '1996: Named Wedin as Palme\'s killer on SABC',
+                '1996: Stated kill order came through Williamson\'s operation',
+                '1996: Excluded Anthony White after speaking with de Kock in prison',
+                'Connected to White and Barnett via Richard Fair',
+                'TRC amnesty for London ANC bombing'
+            ],
+            sources: [
+                { title: 'Washington Post (1996)', url: 'https://www.washingtonpost.com/archive/politics/1996/10/04/new-tales-of-old-killing-stir-intrigue-in-s-africa/b08c46fb-34d6-430e-90c9-d9d39ee549e7/' },
+                { title: 'Wikispooks — Anthony White (Caselton video)', url: 'https://wikispooks.com/wiki/Anthony_White' },
+                { title: 'Mail & Guardian (1996)', url: 'https://mg.co.za/article/1996-10-04-palmes-murder-still-a-mystery/' }
+            ],
+            flag: 'DEATH DATE UNCERTAIN: Standard narrative says Caselton was crushed to death repairing his car in 1997 before expected TRC testimony. However, a YouTube video uploaded July 2015 shows a person identified as Caselton speaking on camera about de Kock and the Palme case. If authentic, the 1997 death story requires re-examination.'
+        },
+        {
+            id: 'enerstrom',
+            name: 'Alf Enerström',
+            cluster: 'swedish_facilitator',
+            category: 'extremist',
+            subtitle: 'Right-Wing Extremist — Palme Opponent',
+            description: 'Swedish right-wing extremist physician and vocal opponent of Palme. Named as person of interest in the Palme investigation. Connected to SÄPO through Agent "M" — Enerström claimed a SÄPO agent recruited him for an elimination operation. His personal assistant was David Fredin, who was later connected to Bertil Wedin via hacked email evidence. The day after the murder, Enerström fled Stockholm to his cabin in the countryside accompanied by an unknown person. It is suspected they hid a revolver that Enerström owned — a weapon that has never been recovered. Enerström represents the domestic Swedish far-right layer that potentially provided local support or cover for foreign intelligence operations.',
+            affiliations: ['Swedish Right-Wing Networks', 'European Neo-Nazi Movement', 'SÄPO contacts'],
+            events: [
+                'Subject of Palme investigation',
+                'Connected to anti-communist networks across Europe',
+                'Claimed SÄPO agent recruited him for elimination operation',
+                'David Fredin was his personal assistant',
+                'Mar 1, 1986: Fled to cabin with unknown person the day after murder',
+                'Suspected of hiding a revolver he owned — weapon never recovered',
+                'SÄPO surveillance subject'
+            ],
+            sources: [
+                { title: 'Wikipedia — Assassination of Olof Palme', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' }
+            ],
+            suspect: true,
+            note: 'SUSPICIOUS BEHAVIOR: Fled Stockholm to his cabin the day after the murder with an unidentified companion — suspected of hiding a revolver he owned that has never been recovered. Combined with his SÄPO elimination op claim and Fredin-Wedin connection, Enerström remains a credible suspect for direct involvement.'
+        },
+        {
+            id: 'fredin',
+            name: 'David Fredin',
+            cluster: 'swedish_facilitator',
+            category: 'operative',
+            subtitle: 'Logistics Contact / "Jakob Thedelin"',
+            description: 'Known in Jan Stocklassa\'s 2018 book (built on Stieg Larsson\'s research) under the pseudonym "Jakob Thedelin." Fredin was Alf Enerström\'s personal assistant and had no confirmed alibi for the night of the murder. He was placed under SÄPO surveillance in the months after the assassination. Through hacked emails documented by Stocklassa, Fredin was connected to Bertil Wedin — the suspected Swedish-South African intelligence interface in Cyprus. Fredin publicly came forward in a 2023 documentary. He denies involvement but remains one of the most important documented links in the Swedish facilitator chain.\n\nThe Fredin-Wedin email connection is significant because it bridges the domestic Swedish facilitator layer (Enerström network) to the international SA intelligence layer (Wedin/Williamson) with documentary evidence rather than just witness testimony.',
+            affiliations: ['Enerström Network', 'Wedin Contact', 'SÄPO Surveillance Subject'],
+            events: [
+                'Personal assistant to Alf Enerström',
+                'No confirmed alibi for Feb 28, 1986',
+                'Placed under SÄPO surveillance post-murder',
+                'Connected to Bertil Wedin via hacked emails (Stocklassa/Larsson research)',
+                'Pseudonym "Jakob Thedelin" in Stocklassa\'s book (2018)',
+                '2023: Came forward publicly in documentary',
+                'Denies involvement in the murder'
+            ],
+            sources: [
+                { title: 'Wikipedia — Assassination of Olof Palme (Stocklassa)', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' }
+            ],
+            note: 'KEY LINK: The documented Fredin-Wedin email connection is the strongest single piece of evidence connecting the Swedish facilitator layer to the SA network with documentary (not testimonial) evidence.'
+        },
+        {
+            id: 'gunnarsson',
+            name: 'Victor Gunnarsson',
+            cluster: 'swedish_facilitator',
+            category: 'extremist',
+            subtitle: '"The 33-Year-Old" — Initial Suspect',
+            description: 'Primary initial suspect in the Palme assassination. Right-wing extremist connected to anti-Palme networks. Pamphlets hostile to Palme were found in his home. Later fled to the United States. Found murdered in the Blue Ridge Mountains, North Carolina in 1993, stripped naked with two .22 caliber pistol wounds to the back of the head. Former police officer Lamont C. Underwood was convicted of the murder as part of a love triangle — though some maintain the execution-style killing has intelligence hallmarks.',
+            affiliations: ['Swedish Right-Wing Movement', 'European Extremist Networks'],
+            events: [
+                'Named as primary early suspect ("the 33-year-old")',
+                'Anti-Palme pamphlets found in his home',
+                'Known right-wing extremist activities',
+                'Fled to United States',
+                '1993: Found murdered in Blue Ridge Mountains, NC',
+                'Stripped naked, two .22 caliber shots to back of head',
+                'Lamont C. Underwood convicted (love triangle)'
+            ],
+            sources: [
+                { title: 'Wikipedia — Assassination of Olof Palme (Gunnarsson)', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' }
+            ],
+            note: 'UNRESOLVED: While Underwood was convicted for the murder, the execution-style method (two shots to back of head, stripped) has led some investigators to question whether intelligence involvement was completely ruled out.',
+            suspect: true
+        },
+        {
+            id: 'sapo_m',
+            name: 'SÄPO Agent "M"',
+            cluster: 'swedish_facilitator',
+            category: 'anonymous',
+            subtitle: 'Anonymous SÄPO Officer',
+            description: 'Anonymous SÄPO agent documented as connecting Alf Enerström to the institutional SÄPO layer. Enerström claimed this agent recruited him for an elimination operation. Represents the documented but unnamed Swedish intelligence personnel who may have provided domestic institutional support for the operation.',
+            affiliations: ['SÄPO (Swedish Security Service)'],
+            events: [
+                'Documented contact with Enerström',
+                'Enerström claimed Agent "M" recruited him for elimination op',
+                'Connected to institutional SÄPO layer',
+                'Represents unnamed intelligence personnel'
+            ],
+            note: 'ANONYMOUS NODE: Represents documented but unidentified SÄPO personnel. The question of Swedish institutional complicity — whether SÄPO elements actively assisted or merely failed to prevent — remains unresolved.'
+        },
+        
+        // ============================================
+        // INSTITUTIONAL FAILURE CLUSTER
+        // ============================================
+        {
+            id: 'petersson_k',
+            name: 'Krister Petersson',
+            cluster: 'institutional_failure',
+            category: 'institutional_failure',
+            subtitle: 'Prosecutor — Case Closer (2020)',
+            description: 'Prosecutor who closed the Palme case on June 10, 2020 by naming Stig Engström ("Skandia Man"), a graphic designer who committed suicide in 2000, as the most likely suspect. The conclusion was based on circumstantial evidence against a dead man who could not defend himself, with no forensic proof and no new evidence. Lead investigator Hans Melander acknowledged the SA lead had been "interesting" but said there was "not enough specific information." The investigation thoroughly avoided the SA thread while building a weak case against a dead graphic designer. His conclusion was reversed by Lennart Guné in December 2025.',
+            affiliations: ['Swedish Prosecution Authority'],
+            events: [
+                'June 10, 2020: Closed Palme case, named Stig Engström',
+                'No forensic evidence presented',
+                'No new evidence — only reinterpretation of existing material',
+                'Engström deceased (2000) — could not respond',
+                'Melander: SA lead "interesting" but "not enough specific information"',
+                'Avoided SA thread despite documented authorization (Slingervel)',
+                'Dec 2025: Conclusion reversed by Guné'
+            ],
+            sources: [
+                { title: 'Wikipedia — Assassination of Olof Palme (2020)', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' },
+                { title: 'Times Live — Case Closed', url: 'https://select.timeslive.co.za/news/2020-06-11-dont-rule-out-sa-its-case-closed-on-olof-palme-but-nobodys-convinced/' }
+            ],
+            note: 'CENTRAL QUESTION: Why did the investigation avoid the documented SA thread — including state-level written authorization for action against Palme — while building a weak circumstantial case against a dead graphic designer?'
+        },
+        {
+            id: 'gune',
+            name: 'Lennart Guné',
+            cluster: 'institutional_failure',
+            category: 'institutional_failure',
+            subtitle: 'Director of Prosecution — Reversed 2020 Conclusion',
+            description: 'Director of Prosecution who in December 2025 reversed Krister Petersson\'s 2020 conclusion naming Stig Engström as the killer. Guné ruled that the evidence against Engström was insufficient and that it was legally wrong to have named him. However — critically — Guné simultaneously refused to reopen the investigation, citing procedural grounds. His decision removed the named suspect without opening the door to finding the real one. No DNA testing or new forensic work was authorized. The case technically remains open but uninvestigated.',
+            affiliations: ['Swedish Prosecution Authority'],
+            events: [
+                'Dec 2025: Reversed Petersson\'s Engström conclusion',
+                'Ruled evidence against Engström insufficient',
+                'Ruled it legally wrong to have named him',
+                'Simultaneously refused to reopen the investigation',
+                'Did not authorize DNA testing or new forensic work',
+                'Case technically open but uninvestigated'
+            ],
+            sources: [
+                { title: 'Sweden Herald — Hottest Leads', url: 'https://swedenherald.com/article/hottest-leads-in-the-hunt-for-olof-palmes-murderer' }
+            ],
+            note: 'MANAGED RETREAT: Guné undid the Engström conclusion but blocked further investigation — creating the appearance of accountability while preserving the status quo. Maximum confusion, minimum accountability.'
+        },
+        {
+            id: 'ebbe',
+            name: 'Ebbe Carlsson',
+            cluster: 'institutional_failure',
+            category: 'institutional_failure',
+            subtitle: 'Publisher — Illegal Parallel Investigation',
+            description: 'Swedish publisher and close friend of Hans Holmér (the police chief who drove the PKK theory). After Holmér was removed from the investigation in February 1987, Carlsson continued the PKK pursuit privately and illegally — with secret support from Justice Minister Anna-Greta Leijon, SÄPO chief Sune Sandström, and National Police chief Nils-Erik Åhman. He was given access to classified documents, an undercover police car, a bodyguard, and illegal wiretapping equipment. Leijon wrote him letters of recommendation for his UK investigation. The scandal ("Ebbe Carlsson affair") was exposed by Expressen in June 1988, forcing Leijon\'s resignation. Carlsson was fined for smuggling surveillance equipment. He died of AIDS in 1992.\n\nThe significance: The PKK disinformation that Wedin planted was not just passively received — it was actively amplified and sustained at the highest levels of the Swedish government even after it was discredited. This extends the institutional failure from mere incompetence to something more troubling.',
+            affiliations: ['Hans Holmér (close friend)', 'Anna-Greta Leijon (Justice Minister)', 'Swedish Social Democratic Party inner circle'],
+            events: [
+                '1988: Ran illegal private investigation continuing PKK theory',
+                'Secret support from Justice Minister Leijon',
+                'Secret support from SÄPO chief Sandström',
+                'Secret support from National Police chief Åhman',
+                'Given classified documents, undercover car, bodyguard',
+                'Used illegal wiretapping of Kurdish immigrants',
+                'Leijon wrote letters of recommendation for UK investigation',
+                'June 1988: Exposed by Expressen journalist Per Wendel',
+                'Forced Leijon\'s resignation',
+                'Fined for smuggling surveillance equipment',
+                '1992: Died of AIDS'
+            ],
+            sources: [
+                { title: 'Wikipedia — Ebbe Carlsson affair', url: 'https://en.wikipedia.org/wiki/Ebbe_Carlsson_affair' },
+                { title: 'Jacobin — Many Assassins of Palme', url: 'https://jacobin.com/2020/05/olof-palme-assassination-theories-suspects-investigation-sweden' }
+            ],
+            note: 'INSTITUTIONAL AMPLIFICATION: Carlsson\'s affair proves the PKK disinformation was not a one-time deception — it was actively sustained and amplified at Justice Minister level even after it was discredited. Wedin planted it; the Swedish establishment watered it.'
+        },
+        
+        // ============================================
+        // INTELLIGENCE NETWORKS CLUSTER
+        // ============================================
+        {
+            id: 'safari_club',
+            name: 'The Safari Club',
+            cluster: 'intelligence',
+            category: 'organization',
+            subtitle: 'CIA-Adjacent Covert Operations Network',
+            description: 'Informal network of allied intelligence services established in the mid-1970s after the Church Committee hearings constrained the CIA\'s covert action capabilities. Founded with CIA Director George H.W. Bush\'s knowledge. Participants included French intelligence (SDECE under de Marenches), Saudi intelligence (under Kamal Adham), South African intelligence, Israeli Mossad, Egyptian intelligence, and Moroccan intelligence. The Club performed covert operations the CIA could not officially run, with plausible deniability built in.\n\nThe Safari Club is the structural key to understanding how SA intelligence could access European logistical infrastructure without building it from scratch — they simply used a partner network. It explains the French connections, the Saudi financing, and the CIA\'s ability to maintain deniability.',
+            affiliations: ['CIA', 'SDECE (France)', 'Saudi Intelligence', 'South African Intelligence', 'Mossad'],
+            events: [
+                'Mid-1970s: Established post-Church Committee',
+                'CIA provided intelligence, partners did fieldwork',
+                'De Marenches (SDECE) was key architect',
+                'South Africa was full participant',
+                'Operated in Europe, Africa, Middle East',
+                'Provided structural framework for deniable operations',
+                'Explained SA access to European operational infrastructure'
+            ],
+            sources: [
+                { title: 'Wikipedia — Safari Club', url: 'https://en.wikipedia.org/wiki/Safari_Club' }
+            ],
+            note: 'STRUCTURAL KEY: The Safari Club explains how SA intelligence had European operational access without independent infrastructure. It connects the SA, French, Saudi, and CIA-adjacent networks into a single operational framework.'
+        },
+        {
+            id: 'slingervel',
+            name: 'Operation Slingervel',
+            cluster: 'intelligence',
+            category: 'organization',
+            subtitle: 'SSC Authorization — Oct/Nov 1985',
+            description: 'South African State Security Council operation authorized in October/November 1985 — approximately three months before Palme\'s murder. A declassified SA Military Intelligence document from this period stated that the Anti-Apartheid Movement planned to meet in Stockholm in February 1986 and noted: "Historically, the ANC receives 50 per cent of its funding from Sweden and enjoys the support of Mr Olof Palme, the Swedish premier, who is at the forefront of European action against South Africa."\n\nThe most chilling paragraph read: "Action proposed previously against Mr Palme should now be given urgent attention." Someone — presumably a senior official — wrote in black ink: "Agreed!" By November 20, 1985, the SSC had sanctioned the proposed Swedish operation code-named Slingervel. Brigadier Tolletjie Botha personally briefed Williamson and Longreach on what the SSC wanted.',
+            affiliations: ['SA State Security Council', 'SA Military Intelligence', 'Longreach'],
+            events: [
+                'Oct 1985: MI report on Palme/AAM Stockholm meeting',
+                '"Palme at the forefront of European action against SA"',
+                '"Action proposed previously should now be given urgent attention"',
+                'Senior official annotation in black ink: "Agreed!"',
+                'Nov 20, 1985: SSC sanctioned operation code-named Slingervel',
+                'Botha personally briefed Williamson/Longreach',
+                'Three months before Palme\'s Feb 28, 1986 murder',
+                'Never made the anchor of Swedish investigation'
+            ],
+            sources: [
+                { title: 'Wikispooks — Craig Williamson (Slingervel)', url: 'https://wikispooks.com/wiki/Craig_Williamson' },
+                { title: 'Wikipedia — Assassination of Olof Palme', url: 'https://en.wikipedia.org/wiki/Assassination_of_Olof_Palme' }
+            ],
+            note: 'SMOKING GUN: State-level written authorization for "urgent action" against Palme exists, dated three months before his murder, with a senior official\'s handwritten "Agreed!" The Swedish investigation never made this the center of its work.'
+        },
+        
+        // ============================================
+        // ARMS & FINANCE NETWORKS CLUSTER
+        // ============================================
+        {
+            id: 'khashoggi',
+            name: 'Adnan Khashoggi',
+            cluster: 'arms_finance',
+            category: 'arms_dealer',
+            subtitle: 'Saudi Arms Dealer — Iran-Contra',
+            description: 'Saudi billionaire arms dealer, central to Iran-Contra weapons deals. Palme\'s government investigated Swedish arms deals connected to BCCI, threatening networks involving Khashoggi. The Bofors arms scandal — involving illegal Swedish weapons exports — intersected with networks Khashoggi operated in.',
+            affiliations: ['CIA', 'Saudi Intelligence', 'BCCI Bank', 'Iranian Government'],
+            events: [
+                'Central figure in Iran-Contra arms deals ($25+ billion)',
+                'BCCI banking scandal connections',
+                'Saudi-US weapons programs',
+                'Connected to Palme investigation via arms deals',
+                'Bofors scandal intersection'
+            ],
+            sources: [
+                { title: 'Wikipedia — Adnan Khashoggi', url: 'https://en.wikipedia.org/wiki/Adnan_Khashoggi' }
+            ]
+        },
+        {
+            id: 'adham',
+            name: 'Kamal Adham',
+            cluster: 'arms_finance',
+            category: 'intelligence',
+            subtitle: 'Saudi Intelligence Chief (1963–1979)',
+            description: 'Saudi intelligence chief and major CIA asset. Key intermediary in covert operations. Major BCCI shareholder. Co-founder of the Safari Club with de Marenches. His involvement connects the Saudi financial infrastructure to the operational networks that had motive to eliminate Palme.',
+            affiliations: ['Saudi Intelligence', 'CIA', 'BCCI Bank', 'Safari Club'],
+            events: [
+                'Founded/led Saudi intelligence services (1963–1979)',
+                'Major BCCI shareholder',
+                'CIA principal asset in Middle East',
+                'Safari Club co-founder',
+                'Iran-Contra financial facilitation'
+            ],
+            sources: [
+                { title: 'Wikipedia — Kamal Adham', url: 'https://en.wikipedia.org/wiki/Kamal_Adham' }
+            ]
+        },
+        
+        // ============================================
+        // GLADIO / STAY-BEHIND CLUSTER
+        // ============================================
+        {
+            id: 'marenches',
+            name: 'Alexandre de Marenches',
+            cluster: 'gladio',
+            category: 'intelligence',
+            subtitle: 'French Intelligence Chief (SDECE) — Safari Club Architect',
+            description: 'Head of French foreign intelligence (SDECE) 1970–1981. Key architect of the Safari Club and Gladio stay-behind networks. MULTIPLE CLUSTER CONNECTIONS: Connected to Saudi intelligence (Adham), South African operations (Williamson, Thirion), and allegedly offered to assist with Palme\'s elimination. De Marenches represents the intersection point between the French intelligence establishment, NATO\'s secret armies, and the Safari Club — the node where European operational infrastructure meets SA intelligence capability.',
+            affiliations: ['SDECE', 'NATO', 'Operation Gladio', 'Safari Club (architect)', 'Saudi Intelligence contacts', 'SA contacts'],
+            events: [
+                'Head of SDECE 1970–1981',
+                'Architected Safari Club with Bush Sr.\'s knowledge',
+                'Created French Stay-Behind/Gladio networks',
+                'Coordinated anti-communist operations globally',
+                'Connected to Saudi intelligence via Adham',
+                'Connected to SA operations via Safari Club',
+                'Allegedly offered to kill Palme'
+            ],
+            sources: [
+                { title: 'Wikipedia — Alexandre de Marenches', url: 'https://en.wikipedia.org/wiki/Alexandre_de_Marenches' },
+                { title: 'Wikipedia — Safari Club', url: 'https://en.wikipedia.org/wiki/Safari_Club' }
+            ],
+            note: 'NEXUS POINT: De Marenches is where European infrastructure (Gladio/SDECE), Saudi financing, and SA operational capability converge. If SA intelligence needed European logistical support for the Palme operation, de Marenches\'s networks provided the framework.'
+        },
+        {
+            id: 'gelli',
+            name: 'Licio Gelli',
+            cluster: 'gladio',
+            category: 'operative',
+            subtitle: 'P2 Masonic Lodge Grand Master',
+            description: 'Italian P2 Masonic Lodge leader. Central figure in Operation Gladio, connected to Vatican banking scandals (Banco Ambrosiano), and international covert operations including the Bologna train station bombing. P2 provided an organizational infrastructure for right-wing covert action across Europe. Palme\'s positions threatened Gladio network interests by pursuing Nordic nuclear-free zones and challenging NATO\'s Cold War framework.',
+            affiliations: ['P2 Masonic Lodge', 'Operation Gladio', 'Vatican Bank / Banco Ambrosiano', 'Italian Intelligence (SISMI)'],
+            events: [
+                'P2 Lodge Grand Master — 962 members including Italian PM, intelligence chiefs',
+                'Connected to Banco Ambrosiano collapse',
+                'Connected to Bologna train station bombing (1980)',
+                'Fled to Argentina',
+                'Gladio network coordination across Europe',
+                'P2 member list included intelligence chiefs from multiple countries'
+            ],
+            sources: [
+                { title: 'Wikipedia — Licio Gelli', url: 'https://en.wikipedia.org/wiki/Licio_Gelli' },
+                { title: 'Wikipedia — Propaganda Due', url: 'https://en.wikipedia.org/wiki/Propaganda_Due' }
+            ]
+        },
+
+        // ============================================
+        // INVESTIGATORS (reference nodes)
+        // ============================================
+        {
+            id: 'larsson',
+            name: 'Stieg Larsson',
+            cluster: 'institutional_failure',
+            category: 'institutional_failure',
+            subtitle: 'Journalist & Author — SA Thread Researcher',
+            description: 'Swedish journalist, author of the Millennium Trilogy, and dedicated investigator of the Palme assassination who spent years researching the South African connection. Larsson specifically identified the Williamson-Wedin operational link and built the evidentiary foundation that later researchers expanded. His long-term partner Ewa Gabrielsson provided 15 boxes of his Palme research material to Swedish newspaper Dagbladet in 2014, a decade after his death. This material focused heavily on Wedin and his SA intelligence contacts. Jan Stocklassa built on Larsson\'s research for his 2018 book, which identified David Fredin ("Jakob Thedelin") and uncovered the Fredin-Wedin email connection. Larsson died of a heart attack in 2004, aged 50.',
+            affiliations: ['Expo Magazine (founder)', 'Independent investigator', 'Anti-fascist researcher'],
+            events: [
+                'Spent years investigating Palme murder\'s SA connection',
+                'Identified Williamson-Wedin operational link',
+                'Compiled 15 boxes of research material',
+                'Nov 2004: Died of heart attack, aged 50',
+                '2014: Partner Ewa Gabrielsson gave research to Dagbladet',
+                'Research formed foundation for Stocklassa\'s 2018 book',
+                'Stocklassa identified Fredin and Fredin-Wedin emails using Larsson\'s work'
+            ],
+            sources: [
+                { title: 'Wikispooks — Olof Palme/Assassination (Larsson)', url: 'https://wikispooks.com/wiki/Olof_Palme/Assassination' },
+                { title: 'Wikipedia — Stieg Larsson', url: 'https://en.wikipedia.org/wiki/Stieg_Larsson' }
+            ],
+            note: 'RESEARCH FOUNDATION: Without Larsson\'s years of investigation, the Williamson-Wedin-Fredin chain might never have been documented. His work was continued posthumously through Gabrielsson and Stocklassa.'
+        }
+    ];
+    
+    // ============================================
+    // CONNECTIONS — v3 Streamlined
+    // ============================================
+    const links = [
+        // === PALME CENTRAL CONNECTIONS ===
+        { source: 'palme', target: 'williamson', type: 'foreign_covert', label: 'Target — Williamson in Stockholm 7 days before murder' },
+        { source: 'palme', target: 'vlakplaas', type: 'foreign_covert', label: 'SA government death squad — motive and capability' },
+        { source: 'palme', target: 'longreach', type: 'foreign_covert', label: 'Named as operational unit behind murder by multiple sources' },
+        { source: 'palme', target: 'slingervel', type: 'intelligence', label: 'SSC authorized "urgent action" — 3 months before murder' },
+        { source: 'palme', target: 'wedin', type: 'swedish_facilitator', label: 'Named as killer by Caselton — planted PKK disinformation' },
+        { source: 'palme', target: 'gunnarsson', type: 'swedish_facilitator', label: 'Initial suspect — later murdered in USA' },
+        { source: 'palme', target: 'petersson_k', type: 'institutional_failure', label: 'Case closed 2020 — named dead man — SA thread avoided' },
+        { source: 'palme', target: 'khashoggi', type: 'arms_finance', label: 'Palme govt investigated arms deals — threatened network' },
+        { source: 'palme', target: 'marenches', type: 'gladio', label: 'De Marenches allegedly offered to kill Palme' },
+        { source: 'palme', target: 'carlsson_b', type: 'cross_cluster', label: 'Fellow targets — same anti-apartheid network' },
+        { source: 'palme', target: 'botha_pw', type: 'foreign_covert', label: 'SSC authorization under his presidency' },
+        
+        // === P.W. BOTHA COMMAND CHAIN ===
+        { source: 'botha_pw', target: 'slingervel', type: 'intelligence', label: 'SSC authorized Slingervel under his chairmanship' },
+        { source: 'botha_pw', target: 'thirion', type: 'foreign_covert', label: 'Military Intelligence reported to SSC' },
+        { source: 'botha_pw', target: 'vlakplaas', type: 'foreign_covert', label: 'SSC oversight of police death squads' },
+        { source: 'botha_pw', target: 'ccb', type: 'foreign_covert', label: 'Military intelligence external operations under SSC' },
+        { source: 'botha_pw', target: 'botha_t', type: 'foreign_covert', label: 'Brig Botha reported to SSC chain' },
+        
+        // === SA COVERT OPERATIONS INTERNAL ===
+        { source: 'vlakplaas', target: 'coetzee', type: 'foreign_covert', label: 'Command structure — Coetzee first commander' },
+        { source: 'vlakplaas', target: 'dekock', type: 'foreign_covert', label: 'De Kock succeeded Coetzee as commander' },
+        { source: 'vlakplaas', target: 'williamson', type: 'foreign_covert', label: 'Williamson connected through police structures' },
+        { source: 'vlakplaas', target: 'thirion', type: 'foreign_covert', label: 'Military-police coordination' },
+        { source: 'vlakplaas', target: 'ccb', type: 'foreign_covert', label: 'Parallel SA covert structures' },
+        { source: 'coetzee', target: 'dekock', type: 'foreign_covert', label: 'Successive Vlakplaas commanders' },
+        { source: 'coetzee', target: 'williamson', type: 'foreign_covert', label: 'Former colleagues — Coetzee relayed Stander version' },
+        { source: 'coetzee', target: 'white', type: 'foreign_covert', label: 'Named White as trigger man (via Stander\'s account)' },
+        { source: 'coetzee', target: 'stander', type: 'foreign_covert', label: 'Stander\'s version relayed through Coetzee' },
+        { source: 'dekock', target: 'williamson', type: 'foreign_covert', label: 'Named Williamson for Palme murder in Pretoria Supreme Court (1996)' },
+        { source: 'dekock', target: 'caselton', type: 'foreign_covert', label: 'TRC amnesty together — de Kock supported Wedin version' },
+        { source: 'thirion', target: 'williamson', type: 'foreign_covert', label: 'Military intelligence liaison' },
+        { source: 'thirion', target: 'slingervel', type: 'intelligence', label: 'Unit produced authorization documents' },
+        { source: 'thirion', target: 'botha_t', type: 'foreign_covert', label: 'Military intelligence chain' },
+        { source: 'williamson', target: 'slingervel', type: 'intelligence', label: 'Briefed on SSC authorization by Botha' },
+        { source: 'williamson', target: 'longreach', type: 'foreign_covert', label: 'Founded and commanded — funded via IUEF' },
+        { source: 'williamson', target: 'botha_t', type: 'foreign_covert', label: 'Botha personally briefed Williamson on SSC orders' },
+        { source: 'williamson', target: 'white', type: 'foreign_covert', label: 'White was Longreach founder member under Williamson' },
+        { source: 'williamson', target: 'stander', type: 'foreign_covert', label: 'Hired then fired Stander (alleged fraud)' },
+        { source: 'williamson', target: 'barnett', type: 'foreign_covert', label: 'DCC/Longreach network' },
+        { source: 'williamson', target: 'carlsson_b', type: 'foreign_covert', label: 'Alleged to have engineered Carlsson\'s death (Lockerbie)' },
+        { source: 'longreach', target: 'vlakplaas', type: 'foreign_covert', label: 'Coordinated international operations' },
+        { source: 'longreach', target: 'white', type: 'foreign_covert', label: 'White was founder member' },
+        { source: 'longreach', target: 'caselton', type: 'foreign_covert', label: 'Caselton was Longreach operative' },
+        { source: 'longreach', target: 'stander', type: 'foreign_covert', label: 'Stander worked at Longreach post-murder' },
+        { source: 'longreach', target: 'barnett', type: 'foreign_covert', label: 'Barnett connected through DCC/Longreach' },
+        { source: 'longreach', target: 'ccb', type: 'foreign_covert', label: 'Parallel military structures' },
+        { source: 'botha_t', target: 'longreach', type: 'foreign_covert', label: 'Longreach reported to Botha' },
+        { source: 'botha_t', target: 'slingervel', type: 'intelligence', label: 'Transmitted SSC authorization to Williamson' },
+        { source: 'white', target: 'barnett', type: 'foreign_covert', label: 'Flew together with Caselton (Richard Fair testimony)' },
+        { source: 'white', target: 'caselton', type: 'foreign_covert', label: 'Flew together (Fair testimony) — Caselton excluded White' },
+        { source: 'white', target: 'stander', type: 'foreign_covert', label: 'Stander named White as trigger man' },
+        { source: 'barnett', target: 'caselton', type: 'foreign_covert', label: 'Flew together (Fair testimony)' },
+        { source: 'ccb', target: 'thirion', type: 'foreign_covert', label: 'Military intelligence oversight' },
+        
+        // === SWEDISH FACILITATORS ===
+        { source: 'wedin', target: 'williamson', type: 'cross_cluster', label: 'Recruited by Williamson c.1980 — admitted in English court' },
+        { source: 'wedin', target: 'caselton', type: 'cross_cluster', label: 'Operational partners — fled London together 1982' },
+        { source: 'wedin', target: 'gunnarsson', type: 'swedish_facilitator', label: 'Swedish suspect network overlap' },
+        { source: 'wedin', target: 'enerstrom', type: 'swedish_facilitator', label: 'Network connection' },
+        { source: 'wedin', target: 'fredin', type: 'swedish_facilitator', label: 'Hacked email evidence (Stocklassa/Larsson research)' },
+        { source: 'wedin', target: 'ebbe', type: 'institutional_failure', label: 'PKK disinformation planted by Wedin → amplified by Ebbe Carlsson' },
+        { source: 'caselton', target: 'williamson', type: 'foreign_covert', label: 'Direct operative — stated kill order came via Williamson' },
+        { source: 'gunnarsson', target: 'enerstrom', type: 'swedish_facilitator', label: 'Right-wing network' },
+        { source: 'enerstrom', target: 'sapo_m', type: 'swedish_facilitator', label: 'Enerström claimed SÄPO agent recruited him for elimination op' },
+        { source: 'enerstrom', target: 'fredin', type: 'swedish_facilitator', label: 'Fredin was Enerström\'s personal assistant' },
+        
+        // === INSTITUTIONAL FAILURE ===
+        { source: 'petersson_k', target: 'gune', type: 'institutional_failure', label: '2020 conclusion reversed December 2025' },
+        { source: 'petersson_k', target: 'wedin', type: 'investigation_avoided', label: 'Wedin thread never pursued despite court testimony' },
+        { source: 'petersson_k', target: 'williamson', type: 'investigation_avoided', label: 'SA thread avoided — "not enough specific information"' },
+        { source: 'petersson_k', target: 'slingervel', type: 'investigation_avoided', label: 'SSC authorization document never made central to case' },
+        { source: 'sapo_m', target: 'petersson_k', type: 'institutional_failure', label: 'SÄPO institutional layer — never investigated' },
+        { source: 'ebbe', target: 'petersson_k', type: 'institutional_failure', label: 'Institutional legacy — decades of misdirection' },
+        { source: 'larsson', target: 'wedin', type: 'cross_cluster', label: 'Larsson identified Williamson-Wedin link' },
+        { source: 'larsson', target: 'fredin', type: 'cross_cluster', label: 'Larsson research → Stocklassa → Fredin identification' },
+        
+        // === INTELLIGENCE NETWORKS ===
+        { source: 'safari_club', target: 'marenches', type: 'intelligence', label: 'De Marenches was co-founder and architect' },
+        { source: 'safari_club', target: 'adham', type: 'intelligence', label: 'Saudi intelligence participant' },
+        { source: 'safari_club', target: 'williamson', type: 'intelligence', label: 'SA intelligence participant' },
+        { source: 'safari_club', target: 'thirion', type: 'intelligence', label: 'SA military intelligence representative' },
+        { source: 'safari_club', target: 'botha_pw', type: 'intelligence', label: 'SA state-level participation via SSC' },
+        { source: 'slingervel', target: 'safari_club', type: 'intelligence', label: 'Operational framework for European access' },
+        
+        // === ARMS & FINANCE ===
+        { source: 'khashoggi', target: 'adham', type: 'arms_finance', label: 'Iran-Contra / BCCI network' },
+        { source: 'khashoggi', target: 'gelli', type: 'arms_finance', label: 'BCCI / P2 financial connection' },
+        { source: 'adham', target: 'gelli', type: 'arms_finance', label: 'Financial network' },
+        
+        // === GLADIO / CROSS-CLUSTER ===
+        { source: 'marenches', target: 'gelli', type: 'gladio', label: 'Gladio coordination — P2/SDECE' },
+        { source: 'marenches', target: 'adham', type: 'cross_cluster', label: 'Saudi-French intelligence — Safari Club' },
+        { source: 'marenches', target: 'williamson', type: 'cross_cluster', label: 'SA-French operations via Safari Club' },
+        { source: 'marenches', target: 'thirion', type: 'cross_cluster', label: 'Military intelligence liaison via Safari Club' },
+        
+        // === UNRESOLVED THREADS ===
+        { source: 'gunnarsson', target: 'enerstrom', type: 'unresolved', label: 'Gunnarsson murdered USA 1993 — execution-style' },
+        { source: 'barnett', target: 'palme', type: 'unresolved', label: 'Swedish-speaking SA operative — unresolved' }
+    ];
+    
+    // ============================================
+    // VISUALIZATION SETUP
+    // ============================================
+    
+    const width = window.innerWidth - 420;
+    const height = window.innerHeight;
+    
+    const svg = d3.select('#network-svg')
+        .attr('viewBox', [0, 0, width, height]);
+    
+    const container = svg.append('g');
+    
+    const zoom = d3.zoom()
+        .scaleExtent([0.2, 4])
+        .on('zoom', (event) => {
+            container.attr('transform', event.transform);
+        });
+    
+    svg.call(zoom);
+    
+    // Glow filter
+    const defs = svg.append('defs');
+    const glowFilter = defs.append('filter')
+        .attr('id', 'glow')
+        .attr('x', '-50%')
+        .attr('y', '-50%')
+        .attr('width', '200%')
+        .attr('height', '200%');
+    
+    glowFilter.append('feGaussianBlur')
+        .attr('stdDeviation', '3')
+        .attr('result', 'coloredBlur');
+    
+    const glowMerge = glowFilter.append('feMerge');
+    glowMerge.append('feMergeNode').attr('in', 'coloredBlur');
+    glowMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+    
+    // Link colors
+    const linkColors = {
+        foreign_covert: '#ef4444',
+        swedish_facilitator: '#3b82f6',
+        institutional_failure: '#f59e0b',
+        investigation_avoided: '#ff6b6b',
+        intelligence: '#8b5cf6',
+        arms_finance: '#dc2626',
+        gladio: '#f97316',
+        cross_cluster: '#555555',
+        unresolved: '#ff0000'
+    };
+    
+    // Category colors
+    const categoryColors = {
+        target: '#ffffff',
+        operative: '#3b82f6',
+        organization: '#f97316',
+        assassin: '#dc2626',
+        intelligence: '#8b5cf6',
+        extremist: '#84cc16',
+        arms_dealer: '#dc2626',
+        anonymous: '#6b7280',
+        institutional_failure: '#f59e0b'
+    };
+    
+    // Create links
+    const linkGroup = container.append('g').attr('class', 'links');
+    
+    const link = linkGroup.selectAll('line')
+        .data(links)
+        .enter()
+        .append('line')
+        .attr('class', 'link')
+        .attr('stroke', d => linkColors[d.type] || '#444')
+        .attr('stroke-dasharray', d => d.type === 'unresolved' ? '6 3' : 
+                                       d.type === 'investigation_avoided' ? '3 3' : 'none');
+    
+    // Create nodes
+    const nodeGroup = container.append('g').attr('class', 'nodes');
+    
+    const node = nodeGroup.selectAll('.node')
+        .data(nodes)
+        .enter()
+        .append('g')
+        .attr('class', 'node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+    
+    // Outer glow
+    node.append('circle')
+        .attr('class', 'outer')
+        .attr('r', d => d.category === 'target' ? 38 : 26)
+        .attr('stroke', d => categoryColors[d.category] || '#666')
+        .attr('filter', d => d.category === 'target' ? 'url(#glow)' : null);
+    
+    // Inner circle
+    node.append('circle')
+        .attr('class', 'inner')
+        .attr('r', d => d.category === 'target' ? 28 : 18)
+        .attr('fill', d => d.category === 'target' ? '#ffffff' : 
+                          d.category === 'anonymous' ? '#1a1a1a' : 
+                          categoryColors[d.category] || '#666')
+        .attr('stroke', d => d.category === 'anonymous' ? '#666' : 'rgba(255,255,255,0.3)')
+        .attr('stroke-dasharray', d => d.category === 'anonymous' ? '3 2' : 'none');
+    
+    // Suspect crosshair ring — potential shooters
+    node.filter(d => d.suspect)
+        .append('circle')
+        .attr('class', 'suspect-ring')
+        .attr('r', 24)
+        .attr('fill', 'none')
+        .attr('stroke', '#ff0044')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '4 3')
+        .attr('opacity', 0.8);
+    
+    node.filter(d => d.suspect)
+        .append('line')
+        .attr('x1', 0).attr('y1', -28)
+        .attr('x2', 0).attr('y2', -20)
+        .attr('stroke', '#ff0044').attr('stroke-width', 1.5).attr('opacity', 0.6);
+    node.filter(d => d.suspect)
+        .append('line')
+        .attr('x1', 0).attr('y1', 28)
+        .attr('x2', 0).attr('y2', 20)
+        .attr('stroke', '#ff0044').attr('stroke-width', 1.5).attr('opacity', 0.6);
+    node.filter(d => d.suspect)
+        .append('line')
+        .attr('x1', -28).attr('y1', 0)
+        .attr('x2', -20).attr('y2', 0)
+        .attr('stroke', '#ff0044').attr('stroke-width', 1.5).attr('opacity', 0.6);
+    node.filter(d => d.suspect)
+        .append('line')
+        .attr('x1', 28).attr('y1', 0)
+        .attr('x2', 20).attr('y2', 0)
+        .attr('stroke', '#ff0044').attr('stroke-width', 1.5).attr('opacity', 0.6);
+    
+    // Icon text
+    const iconMap = {
+        target: '✦',
+        operative: '◉',
+        organization: '⬡',
+        assassin: '✕',
+        intelligence: '◈',
+        extremist: '▲',
+        arms_dealer: '◆',
+        anonymous: '?',
+        institutional_failure: '⊘'
+    };
+    
+    node.append('text')
+        .attr('class', 'icon')
+        .attr('fill', d => d.category === 'target' ? '#ff0000' : 
+                          d.category === 'anonymous' ? '#666' : '#000')
+        .attr('font-size', d => d.category === 'target' ? '18px' : '12px')
+        .text(d => iconMap[d.category] || '●');
+    
+    // Label
+    node.append('text')
+        .attr('class', 'label')
+        .attr('dy', d => d.category === 'target' ? 44 : 32)
+        .text(d => d.name.length > 20 ? d.name.substring(0, 18) + '…' : d.name);
+    
+    // Hover tooltip group (hidden by default)
+    const tooltip = node.append('g')
+        .attr('class', 'hover-tooltip')
+        .attr('transform', d => `translate(0, ${d.category === 'target' ? -50 : -36})`);
+    
+    tooltip.append('rect')
+        .attr('class', 'hover-label-bg')
+        .attr('y', -18)
+        .attr('height', d => d.subtitle ? 38 : 22)
+        .each(function(d) {
+            const nameLen = Math.max(d.name.length, (d.subtitle || '').length * 0.7);
+            const w = Math.max(nameLen * 7.5 + 20, 100);
+            d3.select(this).attr('width', w).attr('x', -w/2);
+        });
+    
+    tooltip.append('text')
+        .attr('class', 'hover-label-name')
+        .attr('dy', -2)
+        .text(d => d.name);
+    
+    tooltip.append('text')
+        .attr('class', 'hover-label-subtitle')
+        .attr('dy', 14)
+        .text(d => {
+            const sub = d.subtitle || '';
+            return sub.length > 40 ? sub.substring(0, 38) + '…' : sub;
+        });
+    
+    // Cluster centers for force layout
+    const clusterCenters = {
+        target: { x: width * 0.5, y: height * 0.45 },
+        foreign_covert: { x: width * 0.25, y: height * 0.35 },
+        swedish_facilitator: { x: width * 0.7, y: height * 0.3 },
+        institutional_failure: { x: width * 0.75, y: height * 0.7 },
+        intelligence: { x: width * 0.35, y: height * 0.7 },
+        arms_finance: { x: width * 0.55, y: height * 0.8 },
+        gladio: { x: width * 0.15, y: height * 0.75 }
+    };
+    
+    // Simulation
+    const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links)
+            .id(d => d.id)
+            .distance(d => {
+                if (d.source.id === 'palme' || d.target.id === 'palme') return 200;
+                if (d.type === 'cross_cluster') return 180;
+                return 100;
+            })
+            .strength(d => {
+                if (d.type === 'unresolved') return 0.1;
+                if (d.type === 'cross_cluster') return 0.2;
+                return 0.4;
+            }))
+        .force('charge', d3.forceManyBody()
+            .strength(d => d.category === 'target' ? -600 : -300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide()
+            .radius(d => d.category === 'target' ? 60 : 40))
+        .force('cluster', function(alpha) {
+            nodes.forEach(d => {
+                const cluster = d.cluster === 'target' ? 'target' : d.cluster;
+                if (clusterCenters[cluster]) {
+                    d.vx -= (d.x - clusterCenters[cluster].x) * alpha * 0.08;
+                    d.vy -= (d.y - clusterCenters[cluster].y) * alpha * 0.08;
+                }
+            });
+        });
+    
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+        
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+    
+    // ============================================
+    // INTERACTIONS
+    // ============================================
+    
+    let selectedNode = null;
+    
+    node.on('click', function(event, d) {
+        event.stopPropagation();
+        selectedNode = d;
+        showNodeDetails(d);
+        highlightConnections(d);
+    });
+    
+    node.on('mouseenter', function(event, d) {
+        if (!selectedNode) {
+            d3.select(this).select('.inner')
+                .transition().duration(200)
+                .attr('r', d.category === 'target' ? 34 : 24);
+        }
+        // Show hover tooltip
+        d3.select(this).selectAll('.hover-label-bg, .hover-label-name, .hover-label-subtitle')
+            .transition().duration(150)
+            .attr('opacity', 1);
+    });
+    
+    node.on('mouseleave', function(event, d) {
+        if (!selectedNode || selectedNode.id !== d.id) {
+            d3.select(this).select('.inner')
+                .transition().duration(200)
+                .attr('r', d.category === 'target' ? 28 : 18);
+        }
+        // Hide hover tooltip
+        d3.select(this).selectAll('.hover-label-bg, .hover-label-name, .hover-label-subtitle')
+            .transition().duration(150)
+            .attr('opacity', 0);
+    });
+    
+    svg.on('click', function() {
+        selectedNode = null;
+        hideNodeDetails();
+        resetHighlight();
+    });
+    
+    function highlightConnections(d) {
+        link.attr('class', l => {
+            if (l.source.id === d.id || l.target.id === d.id) return 'link highlighted';
+            return 'link dimmed';
+        });
+        
+        node.attr('opacity', n => {
+            if (n.id === d.id) return 1;
+            const connected = links.some(l => 
+                (l.source.id === d.id && l.target.id === n.id) ||
+                (l.target.id === d.id && l.source.id === n.id)
+            );
+            return connected ? 1 : 0.15;
+        });
+    }
+    
+    function resetHighlight() {
+        link.attr('class', 'link');
+        node.attr('opacity', 1);
+    }
+    
+    // ============================================
+    // DETAIL PANEL
+    // ============================================
+    
+    function showNodeDetails(d) {
+        document.getElementById('empty-state').style.display = 'none';
+        const card = document.getElementById('node-card');
+        card.classList.add('visible');
+        
+        document.getElementById('node-name').textContent = d.name;
+        document.getElementById('node-subtitle').textContent = d.subtitle || '';
+        document.getElementById('node-description').textContent = d.description;
+        
+        const categoryEl = document.getElementById('node-category');
+        categoryEl.textContent = clusters[d.cluster]?.name || d.cluster;
+        categoryEl.style.background = (categoryColors[d.category] || '#666') + '22';
+        categoryEl.style.color = categoryColors[d.category] || '#666';
+        categoryEl.style.border = `1px solid ${categoryColors[d.category] || '#666'}44`;
+        
+        // Suspect badge
+        let suspectBadge = document.getElementById('suspect-badge');
+        if (!suspectBadge) {
+            suspectBadge = document.createElement('span');
+            suspectBadge.id = 'suspect-badge';
+            suspectBadge.style.cssText = 'font-size:8px;text-transform:uppercase;letter-spacing:2px;padding:3px 8px;border-radius:2px;display:inline-block;margin-left:6px;background:#ff004422;color:#ff0044;border:1px solid #ff004444;';
+            categoryEl.parentNode.insertBefore(suspectBadge, categoryEl.nextSibling);
+        }
+        if (d.suspect) {
+            suspectBadge.style.display = 'inline-block';
+            suspectBadge.textContent = '⊕ Potential Shooter';
+        } else {
+            suspectBadge.style.display = 'none';
+        }
+        
+        // Affiliations
+        document.getElementById('node-affiliations').innerHTML = d.affiliations.map(a => 
+            `<span class="tag">${a}</span>`
+        ).join('');
+        
+        // Events
+        document.getElementById('node-events').innerHTML = d.events.map(e => 
+            `<li>${e}</li>`
+        ).join('');
+        
+        // Connections
+        const connEl = document.getElementById('node-connections');
+        const connections = links.filter(l => 
+            l.source.id === d.id || l.target.id === d.id
+        );
+        
+        connEl.innerHTML = connections.map(l => {
+            const targetId = l.source.id === d.id ? l.target.id : l.source.id;
+            const targetNode = nodes.find(n => n.id === targetId);
+            return `<button class="connection-btn" data-target="${targetId}" title="${l.label}">${targetNode?.name || targetId}</button>`;
+        }).join('');
+        
+        connEl.querySelectorAll('.connection-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetNode = nodes.find(n => n.id === btn.dataset.target);
+                if (targetNode) {
+                    showNodeDetails(targetNode);
+                    highlightConnections(targetNode);
+                    selectedNode = targetNode;
+                }
+            });
+        });
+        
+        // Sources
+        const sourcesSection = document.getElementById('sources-section');
+        const sourcesEl = document.getElementById('node-sources');
+        if (d.sources && d.sources.length > 0) {
+            sourcesSection.style.display = 'block';
+            sourcesEl.innerHTML = d.sources.map(s => 
+                `<li><a href="${s.url}" target="_blank" rel="noopener">↗ ${s.title}</a></li>`
+            ).join('');
+        } else {
+            sourcesSection.style.display = 'none';
+        }
+        
+        // Notes and Flags
+        const noteContainer = document.getElementById('node-note-container');
+        noteContainer.innerHTML = '';
+        
+        if (d.note) {
+            const noteEl = document.createElement('div');
+            noteEl.className = 'note-box';
+            noteEl.innerHTML = `<p>${d.note}</p>`;
+            noteContainer.appendChild(noteEl);
+        }
+        
+        if (d.flag) {
+            const flagEl = document.createElement('div');
+            flagEl.className = 'flag-box';
+            flagEl.innerHTML = `<p>⚠ ${d.flag}</p>`;
+            noteContainer.appendChild(flagEl);
+        }
+    }
+    
+    function hideNodeDetails() {
+        document.getElementById('empty-state').style.display = 'block';
+        document.getElementById('node-card').classList.remove('visible');
+        document.getElementById('node-note-container').innerHTML = '';
+        document.getElementById('sources-section').style.display = 'none';
+    }
+    
+    // ============================================
+    // FILTERS
+    // ============================================
+    
+    const filtersContainer = document.getElementById('filters');
+    
+    let allBtn = document.createElement('span');
+    allBtn.className = 'filter-btn active';
+    allBtn.textContent = 'All';
+    allBtn.dataset.cluster = 'all';
+    allBtn.addEventListener('click', () => filterCluster('all'));
+    filtersContainer.appendChild(allBtn);
+    
+    let suspectBtn = document.createElement('span');
+    suspectBtn.className = 'filter-btn';
+    suspectBtn.textContent = '⊕ Potential Shooters';
+    suspectBtn.dataset.cluster = 'suspects';
+    suspectBtn.style.borderLeftColor = '#ff0044';
+    suspectBtn.style.borderLeftWidth = '3px';
+    suspectBtn.addEventListener('click', () => filterCluster('suspects'));
+    filtersContainer.appendChild(suspectBtn);
+    
+    Object.entries(clusters).forEach(([key, value]) => {
+        const btn = document.createElement('span');
+        btn.className = 'filter-btn';
+        btn.textContent = value.name;
+        btn.dataset.cluster = key;
+        btn.style.borderLeftColor = value.color;
+        btn.style.borderLeftWidth = '3px';
+        btn.addEventListener('click', () => filterCluster(key));
+        filtersContainer.appendChild(btn);
+    });
+    
+    function filterCluster(cluster) {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.cluster === cluster);
+        });
+        
+        if (cluster === 'all') {
+            node.style('display', 'block');
+            link.style('display', 'block');
+        } else if (cluster === 'suspects') {
+            const suspectIds = nodes.filter(n => n.suspect).map(n => n.id);
+            node.style('display', d => d.suspect || d.cluster === 'target' ? 'block' : 'none');
+            link.style('display', d => 
+                suspectIds.includes(d.source.id) || suspectIds.includes(d.target.id) ? 'block' : 'none'
+            );
+        } else {
+            node.style('display', d => d.cluster === cluster || d.cluster === 'target' ? 'block' : 'none');
+            link.style('display', d => 
+                d.source.cluster === cluster || d.target.cluster === cluster ? 'block' : 'none'
+            );
+        }
+    }
+    
+    // ============================================
+    // LEGEND
+    // ============================================
+    
+    const legendEl = document.getElementById('legend-items');
+    Object.entries(clusters).forEach(([key, value]) => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `
+            <div class="legend-color" style="background: ${value.color}"></div>
+            <span>${value.name}</span>
+        `;
+        legendEl.appendChild(item);
+    });
+    
+    [
+        { color: '#ffffff', name: 'Target' },
+        { color: 'transparent', stroke: '#ff0044', name: 'Potential Shooter', dash: true },
+        { color: 'transparent', stroke: '#ff0000', name: 'Unresolved Thread', dash: true }
+    ].forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'legend-item';
+        const colorDiv = document.createElement('div');
+        colorDiv.className = 'legend-color';
+        colorDiv.style.background = item.color;
+        if (item.stroke) colorDiv.style.border = `2px ${item.dash ? 'dashed' : 'solid'} ${item.stroke}`;
+        div.appendChild(colorDiv);
+        div.appendChild(document.createTextNode(item.name));
+        legendEl.appendChild(div);
+    });
+    
+    // ============================================
+    // STATS
+    // ============================================
+    
+    document.getElementById('node-count').textContent = nodes.length;
+    document.getElementById('link-count').textContent = links.length;
+    
+    // ============================================
+    // DRAG FUNCTIONS
+    // ============================================
+    
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+    
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+    
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+    
+    // Initial zoom
+    svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(0.8));
+    </script>
+</body>
+</html>
