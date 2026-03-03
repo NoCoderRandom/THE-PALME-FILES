@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palme Shooter Analysis — Cold Probability Scoring</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a0a0f;
+            color: #ccc;
+            padding: 40px;
+            min-height: 100vh;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff4444, #ff8844);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            color: #555;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 30px;
+        }
+        .methodology {
+            background: #111;
+            border: 1px solid #222;
+            border-left: 3px solid #8b5cf6;
+            padding: 20px;
+            margin-bottom: 30px;
+            font-size: 11px;
+            line-height: 1.8;
+            color: #999;
+            font-family: 'Crimson Pro', serif;
+        }
+        .methodology strong { color: #c4b5fd; }
+        .criteria-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 40px;
+        }
+        .criterion {
+            background: #0d0d12;
+            border: 1px solid #1a1a25;
+            padding: 12px;
+            border-radius: 4px;
+        }
+        .criterion .label {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .criterion .name {
+            font-size: 12px;
+            color: #ff8888;
+            margin-bottom: 4px;
+        }
+        .criterion .desc {
+            font-size: 9px;
+            color: #555;
+            font-family: 'Crimson Pro', serif;
+            line-height: 1.5;
+        }
+        .results {
+            margin-bottom: 40px;
+        }
+        .suspect-card {
+            background: linear-gradient(135deg, #0d0d12 0%, #0a0a0f 100%);
+            border: 1px solid #1a1a25;
+            margin-bottom: 20px;
+            padding: 24px;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .suspect-card.rank-1 { border-left: 4px solid #ff4444; }
+        .suspect-card.rank-2 { border-left: 4px solid #ff8844; }
+        .suspect-card.rank-3 { border-left: 4px solid #f59e0b; }
+        .suspect-card.rank-4 { border-left: 4px solid #3b82f6; }
+        .suspect-card.rank-5 { border-left: 4px solid #6b7280; }
+        .suspect-card.rank-6 { border-left: 4px solid #444; }
+        .suspect-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        .suspect-rank {
+            font-size: 40px;
+            font-weight: 700;
+            color: #1a1a1a;
+            line-height: 1;
+            margin-right: 16px;
+        }
+        .rank-1 .suspect-rank { color: #ff4444; }
+        .rank-2 .suspect-rank { color: #ff8844; }
+        .rank-3 .suspect-rank { color: #f59e0b; }
+        .suspect-name {
+            font-family: 'Crimson Pro', serif;
+            font-size: 22px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .aliases {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .alias-tag {
+            display: inline-block;
+            background: #1a1a2a;
+            border: 1px solid #2a2a3a;
+            border-radius: 3px;
+            padding: 2px 7px;
+            font-size: 9px;
+            color: #888;
+            letter-spacing: 1px;
+        }
+        .alias-tag.primary { border-color: #ff4444; color: #ff8888; }
+        .suspect-subtitle {
+            font-size: 10px;
+            color: #666;
+            font-family: 'Crimson Pro', serif;
+            font-style: italic;
+        }
+        .total-score {
+            text-align: right;
+        }
+        .total-score .number {
+            font-size: 36px;
+            font-weight: 700;
+        }
+        .total-score .max {
+            font-size: 11px;
+            color: #555;
+        }
+        .score-bars {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 20px;
+            margin-bottom: 16px;
+        }
+        .score-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .score-label {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #666;
+            width: 100px;
+            flex-shrink: 0;
+        }
+        .score-bar-bg {
+            flex: 1;
+            height: 6px;
+            background: #111;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s;
+        }
+        .score-value {
+            font-size: 10px;
+            color: #888;
+            width: 24px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .reasoning {
+            font-size: 11px;
+            line-height: 1.7;
+            color: #888;
+            font-family: 'Crimson Pro', serif;
+            border-top: 1px solid #1a1a1a;
+            padding-top: 12px;
+        }
+        .reasoning strong { color: #ff8888; }
+        .key-point {
+            display: inline-block;
+            background: #1a0808;
+            border: 1px solid #331111;
+            padding: 2px 8px;
+            border-radius: 2px;
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #ff6666;
+            margin: 2px;
+        }
+        .disclaimer {
+            background: #0a0a05;
+            border: 1px solid #332211;
+            border-left: 3px solid #f59e0b;
+            padding: 16px 20px;
+            margin-top: 30px;
+            font-size: 10px;
+            color: #f5c462;
+            font-family: 'Crimson Pro', serif;
+            line-height: 1.7;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 10px;
+        }
+        .comparison-table th {
+            text-align: left;
+            padding: 8px 10px;
+            background: #111;
+            border-bottom: 1px solid #222;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #666;
+        }
+        .comparison-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #111;
+            color: #999;
+        }
+        .comparison-table tr:hover td {
+            background: #0d0d12;
+        }
+        .val-high { color: #ff4444; font-weight: 600; }
+        .val-mid { color: #f59e0b; }
+        .val-low { color: #555; }
+    </style>
+</head>
+<body>
+    <h1>COLD PROBABILITY ANALYSIS</h1>
+    <div class="subtitle">Who pulled the trigger? — Machine scoring based on documented evidence only</div>
+
+    <div class="methodology">
+        <strong>Methodology:</strong> Each suspect flagged as "Potential Shooter" in The Palme Files is scored 0–10 across 10 weighted criteria. Only documented evidence, witness testimony, and verified connections are scored — no speculation, no feelings. The criteria are weighted equally at 10 points each for a maximum score of 100. The scoring reflects <em>probability of being the physical trigger-puller</em>, not probability of involvement in a conspiracy (which is a broader question).<br><br>
+        <strong>Key distinction:</strong> A person can score low as a shooter but high as an organizer, facilitator, or cover-up operative. This analysis focuses exclusively on: <em>Who most likely held the gun at Sveavägen/Tunnelgatan at 23:21 on February 28, 1986?</em>
+    </div>
+
+    <div class="criteria-grid">
+        <div class="criterion">
+            <div class="label">C1</div>
+            <div class="name">Motive</div>
+            <div class="desc">Documented personal or ideological reason to want Palme dead</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C2</div>
+            <div class="name">Weapon Capability</div>
+            <div class="desc">Weapons training, access to .357 Magnum or equivalent</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C3</div>
+            <div class="name">Opportunity</div>
+            <div class="desc">Confirmed or likely presence in Stockholm on murder night</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C4</div>
+            <div class="name">Alibi Weakness</div>
+            <div class="desc">Lack of verified alibi for 23:21 on Feb 28, 1986</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C5</div>
+            <div class="name">Physical Match</div>
+            <div class="desc">Match to witness descriptions / phantom images of the shooter</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C6</div>
+            <div class="name">Direct Evidence</div>
+            <div class="desc">Physical, forensic, or documentary evidence linking to crime</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C7</div>
+            <div class="name">Witness Testimony</div>
+            <div class="desc">Named by witnesses at or near the murder scene</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C8</div>
+            <div class="name">Post-Murder Behavior</div>
+            <div class="desc">Suspicious actions, flight, or statements after the murder</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C9</div>
+            <div name="name">Cover-Up Indicators</div>
+            <div class="name">Cover-Up Indicators</div>
+            <div class="desc">Was investigation steered away? Were leads suppressed?</div>
+        </div>
+        <div class="criterion">
+            <div class="label">C10</div>
+            <div class="name">Network Support</div>
+            <div class="desc">Part of an organized group with logistics, escape routes, cover</div>
+        </div>
+    </div>
+
+    <h2 style="font-size:14px; color:#ff6666; letter-spacing:2px; text-transform:uppercase; margin-bottom:20px;">— Comparative Matrix —</h2>
+
+    <table class="comparison-table">
+        <tr>
+            <th>Suspect</th>
+            <th>Motive</th>
+            <th>Weapon</th>
+            <th>Opport.</th>
+            <th>Alibi ❌</th>
+            <th>Phys.</th>
+            <th>Evidence</th>
+            <th>Witness</th>
+            <th>Post-M.</th>
+            <th>Cover</th>
+            <th>Network</th>
+            <th style="color:#ff4444;">TOTAL</th>
+        </tr>
+        <tr>
+            <td style="color:#fff;">C-G Östling</td>
+            <td class="val-high">9</td>
+            <td class="val-high">8</td>
+            <td class="val-high">9</td>
+            <td class="val-high">9</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">8</td>
+            <td class="val-high">9</td>
+            <td class="val-high">9</td>
+            <td class="val-high">9</td>
+            <td class="val-high" style="font-size:13px;">83</td>
+        </tr>
+        <tr>
+            <td style="color:#fff;">Christer A. ⬆⬆</td>
+            <td class="val-high">10</td>
+            <td class="val-high">10</td>
+            <td class="val-high">10</td>
+            <td class="val-high">10</td>
+            <td class="val-high">9</td>
+            <td class="val-high">8</td>
+            <td class="val-low">4</td>
+            <td class="val-high">10</td>
+            <td class="val-low">3</td>
+            <td class="val-low">1</td>
+            <td class="val-mid" style="font-size:13px;">75</td>
+        </tr>
+        <tr>
+            <td style="color:#fff;">Lars Nilsson (Lieutenant X)</td>
+            <td class="val-mid">7</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">8</td>
+            <td class="val-high">8</td>
+            <td class="val-mid">7</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">8</td>
+            <td class="val-high">8</td>
+            <td class="val-high">8</td>
+            <td class="val-mid" style="font-size:13px;">74</td>
+        </tr>
+        <tr>
+            <td style="color:#fff;">Alf Enerström</td>
+            <td class="val-high">9</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">9</td>
+            <td class="val-high">9</td>
+            <td class="val-mid">5</td>
+            <td class="val-mid">7</td>
+            <td class="val-low">3</td>
+            <td class="val-high">9</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">8</td>
+            <td class="val-mid" style="font-size:13px;">73</td>
+        </tr>
+        <tr>
+            <td style="color:#fff;">Bertil Wedin</td>
+            <td class="val-high">9</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">7</td>
+            <td class="val-mid">5</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">9</td>
+            <td class="val-high">8</td>
+            <td class="val-high">10</td>
+            <td class="val-mid" style="font-size:13px;">73</td>
+        </tr>
+        <tr>
+            <td style="color:#fff;">Anti Avsan</td>
+            <td class="val-high">8</td>
+            <td class="val-mid">6</td>
+            <td class="val-high">9</td>
+            <td class="val-high">8</td>
+            <td class="val-mid">5</td>
+            <td class="val-mid">5</td>
+            <td class="val-high">8</td>
+            <td class="val-mid">7</td>
+            <td class="val-high">9</td>
+            <td class="val-high">8</td>
+            <td class="val-mid" style="font-size:13px;">73</td>
+        </tr>
+        <tr>
+            <td style="color:#fff;">Victor Gunnarsson</td>
+            <td class="val-mid">7</td>
+            <td class="val-low">3</td>
+            <td class="val-high">8</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">5</td>
+            <td class="val-low">4</td>
+            <td class="val-low">3</td>
+            <td class="val-mid">6</td>
+            <td class="val-mid">5</td>
+            <td class="val-mid">5</td>
+            <td class="val-low" style="font-size:13px;">52</td>
+        </tr>
+        <tr>
+            <td style="color:#aaa;">Christer Poka ⚠</td>
+            <td class="val-mid">5</td>
+            <td class="val-mid">5</td>
+            <td class="val-low">3</td>
+            <td class="val-mid">7</td>
+            <td class="val-low">2</td>
+            <td class="val-low">2</td>
+            <td class="val-low">1</td>
+            <td class="val-mid">7</td>
+            <td class="val-low">4</td>
+            <td class="val-mid">7</td>
+            <td class="val-low" style="font-size:13px;">43</td>
+        </tr>
+    </table>
+
+    <h2 style="font-size:14px; color:#ff6666; letter-spacing:2px; text-transform:uppercase; margin-bottom:20px; margin-top: 40px;">— Ranked Results —</h2>
+
+    <div class="results">
+
+        <!-- #1 ÖSTLING -->
+        <div class="suspect-card rank-1">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#1</div>
+                    <div>
+                        <div class="suspect-name">Carl-Gustaf Östling</div>
+                        <div class="suspect-subtitle">Police Inspector — Weapons Expert, Norrmalm A-shift — 83/100</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">Policeman A</span>
+                            <span class="alias-tag">GRK: SOU 1999:88 kap 4, s.318</span>
+                            <span class="alias-tag">Policeman Ö</span>
+                            <span class="alias-tag">Lars Borgnäs / SVT Striptease</span>
+                            <span class="alias-tag">Person Ö</span>
+                            <span class="alias-tag">Ulf Lingärde</span>
+                            <span class="alias-tag">"O"</span>
+                            <span class="alias-tag">Gunnar Wall / Mörkläggning</span>
+                            <span class="alias-tag">CGÖ</span>
+                            <span class="alias-tag">CÖ</span>
+                            <span class="alias-tag">Arms Dealer Ö</span>
+                            <span class="alias-tag">Baseball Gang Commander</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#ff4444;">83</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:60%;background:#f59e0b;"></div></div><span class="score-value">6</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>Why #1:</strong> Östling scores highest across the board because he checks nearly every box simultaneously. <span class="key-point">Weapon: 8 (↓ from 10)</span> — Stockholm police weapons expert, ammunition of murder weapon caliber found during search, trained with .357 Magnum at the Defense Shooting Association. Downgraded from 10 as Östling did <em>not</em> own a registered weapon of the same caliber as the murder weapon — unlike Christer A. who is the only confirmed owner. <span class="key-point">Opportunity: 9</span> — left the hospital against doctor's orders on the day of the murder; taxi driver places him 400m from the murder scene 4-5 min after the murder. <span class="key-point">Alibi: 9</span> — no verified alibi. <span class="key-point">Post-Murder: 9</span> — told a colleague that "they knew who the murderer was and it would never be discovered." <span class="key-point">Cover-Up: 9</span> — all leads about him were swept under the rug, no interrogations despite the taxi tip and colleague tips in summer 1988 — instead Christer Pettersson was brought forward. <span class="key-point">Network: 9</span> — Defense Shooting Association, A-shift, connection to the Ebbe Carlsson affair, trips to South Africa.<br><br>
+                <strong>Weakness:</strong> Physical match (6) — Östling had surgery 6 days prior, unclear physical capability. Test firing of his weapon showed no match with the murder bullets (but the weapon could have been swapped).
+            </div>
+        </div>
+
+        <!-- #2 CHRISTER A ⬆⬆ -->
+        <div class="suspect-card rank-2">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#2</div>
+                    <div>
+                        <div class="suspect-name">Christer A. (GH) ⬆⬆</div>
+                        <div class="suspect-subtitle">Private Investor — ONLY CONFIRMED OWNER OF MURDER WEAPON CALIBER — 75/100 (upgraded from 72)</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">GH</span>
+                            <span class="alias-tag">GRK: Perpetrator Profile 8</span>
+                            <span class="alias-tag">Christer A.</span>
+                            <span class="alias-tag">The Forgotten Suspect</span>
+                            <span class="alias-tag">The Defense Marksman</span>
+                            <span class="alias-tag">The Lost Trail (2025-dok)</span>
+                            <span class="alias-tag">The Lone Wolf</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#ff8844;">75</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:100%;background:#ff4444;"></div></div><span class="score-value">10</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:100%;background:#ff4444;"></div></div><span class="score-value">10</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:100%;background:#ff4444;"></div></div><span class="score-value">10</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:100%;background:#ff4444;"></div></div><span class="score-value">10</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:40%;background:#555;"></div></div><span class="score-value">4</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:100%;background:#ff4444;"></div></div><span class="score-value">10</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:30%;background:#555;"></div></div><span class="score-value">3</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:10%;background:#333;"></div></div><span class="score-value">1</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>Why #2 ⬆⬆ — "The only one with the right weapon":</strong> Christer A. (b. 1952 Halland, d. 2008 Södermanland) is the <em>only</em> person in the entire Palme investigation confirmed to have owned a weapon of the same caliber as the murder weapon. No other suspect in this analysis — not Östling, not Nilsson, not Enerström — has confirmed ownership of a .357 Magnum. This fact, combined with new detailed information, justifies a major upgrade.<br><br>
+
+                <span class="key-point">Weapon: 10 (UNIQUE)</span> — Registered owner since 1980 of a Smith &amp; Wesson .357 Magnum with six-inch barrel — the exact same weapon type and caliber as the murder weapon. Had access to the same ammunition through his shooting club. <strong>Refused to surrender the weapon</strong> despite police request — one of few (possibly the only one) whose weapon police never gained access to. Later claimed he had "sold" the revolver to an unknown foreigner in central Stockholm — an obviously implausible story. Given his deep interest in shooting (it was his primary hobby and social contact), he had no rational motive to risk his license through an illegal street sale of a registered weapon. The weapon has never been recovered.<br><br>
+
+                <span class="key-point">Motive: 10 (↑ from 9)</span> — Documented extreme hatred of Palme; rumors that he shot at his TV when Palme was broadcast. <strong>Critical financial trigger:</strong> on February 27, 1986 — the day BEFORE the murder — the Palme government announced a doubling of the stock transaction tax (1→2%), triggering a severe market crash. Christer A. traded on margin and was hit <em>personally and drastically</em> — his portfolio plummeted in value. The murder took place 24 hours later. The combination of ideological hatred and acute personal financial damage the day before makes the motive picture maximal.<br><br>
+
+                <span class="key-point">Opportunity: 10 (↑ from 9)</span> — Lived <strong>within walking distance of Sveavägen</strong> (Hälsingegatan 19, Vasastan — approx. 15 minutes walk from the Grand Cinema). Theory: passed the Grand at approx. 9 PM, saw the Palme couple, went home and retrieved the revolver, and returned.<br><br>
+
+                <span class="key-point">Alibi: 10 (↑ from 9)</span> — Claimed he was bedridden at home with the flu in the days before, during, and after the murder. <strong>Provably lied:</strong> the sick leave covered one week before and one week after the murder, but investigators determined this "is contradicted by other investigation findings." The fabricated alibi is now completely demolished.<br><br>
+
+                <span class="key-point">Physical: 9 (↑ from 8)</span> — <strong>Very similar to Mårten Palme's composite sketch.</strong> The Palme investigation summary (May 1996) found that his "appearance, posture, and manner of movement show a <em>striking resemblance</em> to the descriptions of Olof Palme's killer." Weight approx. 95 kg, stocky build, dark hair. Described by multiple witnesses as "moving like a bear, a large elephant" — a description matching Christer A.'s physical appearance. Matches the perpetrator profile very well.<br><br>
+
+                <span class="key-point">Evidence: 8 (↑ from 7)</span> — Refused to surrender the weapon. Fabricated a sale story. Lied about illness. Did not cooperate with police during interrogations. Had detailed knowledge of the investigation's progress that was "beyond the ordinary." Received at least two reminders in 1990 about the test-firing campaign but never showed up — the Palme investigation did not note until August 1993 that his revolver was still outstanding.<br><br>
+
+                <span class="key-point">Post-Murder: 10 (↑ from 8)</span> — The most incriminating pattern in the entire investigation:
+                <strong>(1) The shooting club:</strong> Stopped attending the shooting club immediately after February 28, 1986 — the murder night. Missed the board meeting on April 4, 1986 (had attended in previous years) — the day after DN reported that police were calling in all owners of Smith &amp; Wesson .357 Magnums. Returned about a year later (spring 1987) and was active again for several years until the mid-1990s. Only after police interrogated him in 1994 and rumors spread in the club did he stop completely. He told police it was due to deteriorating eyesight. A club member said: "After I heard he was a suspect, he never came back."
+                <strong>(2) The murder scene:</strong> Returned to the murder scene on the tenth anniversary — exactly as the perpetrator profile predicted. Moved away from central Stockholm after the murder, but <em>still</em> became a regular at a café diagonally across the street from the murder scene — <strong>after</strong> he had moved from the city. He was not a regular before the murder, but only <em>after</em>, when he himself lived outside the inner city. This behavior (being drawn back to the murder scene) is classic for perpetrators of unsolved murders.
+                <strong>(3) Suicide:</strong> Took his own life (shot himself) in 2008 — when police knocked on his door. Suicide upon police contact is an extremely strong behavioral indicator.<br><br>
+
+                <span class="key-point">Cover-Up: 3 (↓ from 4)</span> — No institutional protection. No active cover-up by police authorities. The investigation was rather passive — police did not draw conclusions from the weapon trail until late. The absence of cover-up is due to Christer A. being a loner without organizational connections.<br><br>
+
+                <span class="key-point">Network: 1 (↓ from 5)</span> — New information confirms that Christer A. was a <strong>complete loner</strong>. He had no social relationships beyond the shooting club. No one to leak to, no one to plan with, no one to confide in. <em>This explains why the murder was never solved.</em> A lone perpetrator without a social network leaves no human trail — only physical and behavioral. His connection to the same Defense Shooting Association as C-G Östling is noted but there is no evidence they were acquainted.<br><br>
+
+                <strong>Critical weakness:</strong> <span class="key-point">Witness: 4 (↑ from 3)</span> — No witnesses place Christer A. directly at the murder scene on Sveavägen on the murder night. Marginally upgraded as multiple descriptions of the perpetrator's movement pattern ("bear", "large elephant") match Christer A.'s physique, but this is generic matching rather than identification. Without direct witness placement at the crime scene, he cannot reach #1 despite five maximum scores in other categories.<br><br>
+
+                <strong>Summary — why Christer A. is now #2:</strong> Christer A. is the <em>only</em> suspect with confirmed ownership of the murder weapon's caliber. He is the only one with five 10s (Motive, Weapon, Opportunity, Alibi, Post-Murder). His post-murder behavioral pattern — the shooting club, the café, the tenth anniversary, the suicide — is the most consistent and incriminating in the entire investigation. His profile points unequivocally toward a <em>lone actor</em>. The only reason he is not #1 is the absence of direct witness placement at the crime scene and the absence of institutional network/cover-up (which paradoxically may explain why the murder remained unsolved). Östling remains #1 due to witness placement (taxi driver) and the massive cover-up pattern — but in terms of weapons, Christer A. is superior to all suspects.<br><br>
+
+                <strong>2025 documentary note:</strong> <em>The Palme Assassination: The Lost Trail</em> (IMDB 8.6, 4 episodes, 3h 40min, directors Marc Pennartz &amp; Peter Isaksson) is the first in-depth documentary program about Christer A. The journalists reconstruct the murder night with Christer A. as the perpetrator. Reviews: "The interrogations of Christer A. and his answers are astonishing" — "Surpasses the Palme Group's naming of Stig Engström by a mile."
+            </div>
+        </div>
+
+        <!-- #3 NILSSON -->
+        <div class="suspect-card rank-3">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#3</div>
+                    <div>
+                        <div class="suspect-name">Lars Nilsson (Lieutenant X)</div>
+                        <div class="suspect-subtitle">Paratrooper — Exercise Leader Gustav, "Hunter-Nisse" — 74/100</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">Lieutenant X</span>
+                            <span class="alias-tag">GRK: SOU 1999:88 kap 4, s.349</span>
+                            <span class="alias-tag">Hunter-Nisse</span>
+                            <span class="alias-tag">The D9440 Person</span>
+                            <span class="alias-tag">Exercise Leader Gustav 2</span>
+                            <span class="alias-tag">Coastal Ranger Trained</span>
+                            <span class="alias-tag">TV4-doc 2026: Main Figure</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#f59e0b;">74</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:60%;background:#f59e0b;"></div></div><span class="score-value">6</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>Why #3:</strong> <span class="key-point">Weapon: 7 (↓ from 10)</span> — described as "probably Sweden's most skilled with weapons," carried weapons while in civilian clothes, had access to weapons and ammunition on Gotland. A witness (TV4 2026) said he showed a Magnum and stated "This is the type that shot Olof Palme." Downgraded: Nilsson did not own a registered weapon of the murder weapon's caliber (.357 Magnum) — unlike Christer A. who is the only confirmed owner. <span class="key-point">Opportunity: 8</span> — Exercise Gustav 2 (Gotland, Feb 24–28, 1986) ended at lunchtime on <em>the day of the murder</em> and participants were flown to Stockholm. Nilsson was confirmed to be in Stockholm during the day. His alibi rests on claims of an "unusually long journey home" to the Gothenburg region — claims not supported by the paper trail. <span class="key-point">Alibi: 8</span> — SÄPO bureau chief Per-Göran Näss stated in 1988 that there was "substance" to the tip. Interrogated repeatedly, always denied involvement. <span class="key-point">Physical: 7</span> — 184 cm, brown hair, dark stubble, "looks like a Southern European" — partially matching composite sketches. <span class="key-point">Network: 8</span> — Exercise Gustav, Stay Behind, B-forces with exercise scenario to "locate and eliminate important Swedish information carriers." He trained, among others, Christer Poka (disappeared 1985), Rolf Dahlgren, and Policeman C (Stefan Svensson) at the Paratrooper School Karlsborg.<br><br>
+                <strong>TV4 documentary 2026:</strong> "The Hidden Tracks of the Palme Murder" (TV4 Play Feb 28, 2026, 3 episodes, AI-analyzed investigation material) points to Nilsson/Lieutenant X as its central figure. The AI identified contradictory statements in interrogation records about travel times and when participants learned of the murder. Documents show that military air transports on February 28 are missing from the War Archives — the crucial page. The series is produced by Pannrummet/FLX and features Gunnar Wall and Inga-Britt Ahlenius, among others.<br><br>
+                <strong>Weakness:</strong> Motive (7) — no directly documented personal hatred of Palme. Possible ideological motive via military circles that viewed Palme as a traitor, but weaker than Östling's documented extremism.
+            </div>
+        </div>
+
+        <!-- #4 ENERSTRÖM -->
+        <div class="suspect-card rank-4">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#4</div>
+                    <div>
+                        <div class="suspect-name">Alf Enerström</div>
+                        <div class="suspect-subtitle">Right-Wing Extremist — Owned Smith & Wesson, demolished alibi — 73/100 (upgraded from 62)</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">Alf E</span>
+                            <span class="alias-tag">GRK: section DA = SOU 1999:88</span>
+                            <span class="alias-tag">Viktor G connection</span>
+                            <span class="alias-tag">Agent M client (per own claims)</span>
+                            <span class="alias-tag">EAP connection</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#3b82f6;">73</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:50%;background:#f59e0b;"></div></div><span class="score-value">5</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:30%;background:#555;"></div></div><span class="score-value">3</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>Why #4 (upgraded from #5):</strong> New information demolishes Enerström's alibi and reveals weapon evidence making him a more serious suspect. <span class="key-point">Weapon: 7 (↓ from 9)</span> — his ex-partner Gio Petre confirmed that Enerström owned a Smith & Wesson revolver. The weapon has never been found. The day after the murder he fled with an unknown person to a cabin in Värmland — suspected of hiding the revolver. Downgraded: Enerström's S&amp;W was not confirmed to be of .357 Magnum caliber — Christer A. is the only one in the investigation with confirmed ownership of the murder weapon's caliber. <span class="key-point">Alibi: 9</span> — Gio Petre demolished his alibi: on the murder night, Enerström left the apartment with the excuse "I'm going to feed the parking meter" — despite free parking on Friday evenings and weekends. He came home late. Petre did not dare tell the truth for decades: "I was afraid of Alf, he was violent." <span class="key-point">Motive: 9</span> — told police that Palme was "a traitor." Documented extreme hatred of Palme. Claimed that a SÄPO agent (Agent M) recruited him for an elimination operation. <span class="key-point">Post-Murder: 9</span> — fled Stockholm the day after the murder with an unknown person to a cabin in Värmland. Hid the revolver. Convicted in 2004 for psychiatric care after attempting to shoot a female police officer — demonstrates documented willingness to fire at people. <span class="key-point">Network: 8</span> — Fredin (his assistant) linked to Wedin via hacked emails. SÄPO Agent M. European right-wing extremist networks. EAP.<br><br>
+                <strong>Critical weakness:</strong> <span class="key-point">Witness: 3</span> — NO witnesses place Enerström at the murder scene on Sveavägen. This is his only truly weak point and what distinguishes him from Östling. His profile fits better as <em>weapon supplier + escape facilitator</em> than as shooter — but with a demolished alibi and proven weapon ownership, he cannot be excluded as trigger man.<br><br>
+                <strong>Operational hypothesis:</strong> Enerström's S&W revolver → delivered to the shooter → murder carried out → Enerström retrieves the weapon → flees to Värmland the next day to hide it. This explains why the murder weapon has never been found.
+            </div>
+        </div>
+
+        <!-- #5 WEDIN -->
+        <div class="suspect-card rank-5">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#5</div>
+                    <div>
+                        <div class="suspect-name">Bertil Wedin</div>
+                        <div class="suspect-subtitle">SA Intelligence Asset — Cyprus — 73/100</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">The Man in Cyprus</span>
+                            <span class="alias-tag">The SA Contact</span>
+                            <span class="alias-tag">The Longreach Connection</span>
+                            <span class="alias-tag">The Fredin Network</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#3b82f6;">73</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:60%;background:#f59e0b;"></div></div><span class="score-value">6</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:60%;background:#f59e0b;"></div></div><span class="score-value">6</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:50%;background:#f59e0b;"></div></div><span class="score-value">5</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:60%;background:#f59e0b;"></div></div><span class="score-value">6</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:100%;background:#ff4444;"></div></div><span class="score-value">10</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>Why #5:</strong> <span class="key-point">Network: 10</span> — strongest organizational backing: Williamson/Longreach/SSC/Slingervel, state-level authorization. <span class="key-point">Post-Murder: 9</span> — planted PKK disinformation 3+ months before investigation announced it, classic post-murder operational cover. <span class="key-point">Motive: 9</span> — SA intelligence operative with documented mission against anti-apartheid targets. Named by Caselton on SABC as killer. Named in SA court.<br><br>
+                <strong>Weakness:</strong> Opportunity (6) — based in Cyprus. Presence in Stockholm on murder night not independently confirmed. Physical match (5) — limited witness descriptions of him at the scene. As a professional operative, Wedin may have been the <em>organizer</em> rather than the trigger man — his PKK disinformation is more consistent with operational management than physical execution.
+            </div>
+        </div>
+
+        <!-- #5 AVSAN (tied) -->
+        <div class="suspect-card rank-5">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#5</div>
+                    <div>
+                        <div class="suspect-name">Anti Avsan</div>
+                        <div class="suspect-subtitle">Riot Police Officer — "The Dekorima Man" — 73/100</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">Policeman B</span>
+                            <span class="alias-tag">GRK: SOU 1999:88 kap 4, s.330</span>
+                            <span class="alias-tag">The Dekorima Man</span>
+                            <span class="alias-tag">The Man at Dekorima</span>
+                            <span class="alias-tag">The Conservative Politician</span>
+                            <span class="alias-tag">The Walkie-Talkie Man</span>
+                            <span class="alias-tag">Member of Parliament (M)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#3b82f6;">73</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:60%;background:#f59e0b;"></div></div><span class="score-value">6</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:50%;background:#f59e0b;"></div></div><span class="score-value">5</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:50%;background:#f59e0b;"></div></div><span class="score-value">5</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:90%;background:#ff4444;"></div></div><span class="score-value">9</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:80%;background:#ff4444;"></div></div><span class="score-value">8</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>Why tied #5:</strong> <span class="key-point">Witness: 8</span> — two Finnish witnesses identified him at the murder scene (Dekorima corner) with a walkie-talkie and weapon. <span class="key-point">Opportunity: 9</span> — placed AT the murder scene by multiple witnesses. <span class="key-point">Cover-Up: 9</span> — three interrogations all classified, never confronted with witnesses, investigation steered away. His reply to a colleague: "No no, we have such backing that you'll never get to us" ("We have such backing you'll never get us").<br><br>
+                <strong>Weakness:</strong> Physical match (5) — The Dekorima Man described as 170 cm; Avsan appears taller. Also, his role may have been <em>spotter/coordinator</em> (walkie-talkie, weapon visible) rather than trigger man. The Finnish walkie-talkie conversation ("Forget it, do what you're supposed to!") suggests he was receiving orders, not the primary shooter. Evidence (5) — circumstantial, no forensics.
+            </div>
+        </div>
+
+        <!-- #7 GUNNARSSON -->
+        <div class="suspect-card rank-6">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#7</div>
+                    <div>
+                        <div class="suspect-name">Victor Gunnarsson</div>
+                        <div class="suspect-subtitle">"The 33-year-old" — Initial suspect, murdered 1993 — 52/100</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">Viktor G</span>
+                            <span class="alias-tag">GRK: avsnitt N = SOU 1999:88</span>
+                            <span class="alias-tag">The 33-year-old</span>
+                            <span class="alias-tag">VG</span>
+                            <span class="alias-tag">The EAP Man</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#444;">52</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="reasoning">
+                <strong>Profile:</strong> Initial suspect with motive and opportunity but weak on weapons capability and evidence (weapon score downgraded 4→3 — no confirmed .357 Magnum). Released early due to thin evidence. His later execution-style murder in the USA (two .22 shots to back of head, stripped) raises questions but doesn't increase his shooter probability — it suggests he may have <em>known something</em> rather than been the one who pulled the trigger.
+            </div>
+        </div>
+
+        <!-- #8 CHRISTER POKA -->
+        <div class="suspect-card rank-6">
+            <div class="suspect-header">
+                <div style="display:flex; align-items:flex-start; gap:16px;">
+                    <div class="suspect-rank">#8</div>
+                    <div>
+                        <div class="suspect-name">Christer Poka ⚠</div>
+                        <div class="suspect-subtitle">Paratrooper — "Disappeared" 1985 — Karlsborg/Lebanon/Cyprus — 43/100</div>
+                        <div class="aliases">
+                            <span class="alias-tag primary">Christer Poka</span>
+                            <span class="alias-tag">wpu.nu: Christer_Poka</span>
+                            <span class="alias-tag">Paratrooper FJS Karlsborg</span>
+                            <span class="alias-tag">UN Soldier Lebanon + Cyprus</span>
+                            <span class="alias-tag">Police Aspirant (discontinued)</span>
+                            <span class="alias-tag">The Vanished Poka</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="total-score">
+                    <div class="number" style="color:#444;">43</div>
+                    <div class="max">/ 100</div>
+                </div>
+            </div>
+            <div class="score-bars">
+                <div class="score-row"><span class="score-label">Motive</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:50%;background:#f59e0b;"></div></div><span class="score-value">5</span></div>
+                <div class="score-row"><span class="score-label">Weapon</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:50%;background:#f59e0b;"></div></div><span class="score-value">5</span></div>
+                <div class="score-row"><span class="score-label">Opportunity</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:30%;background:#555;"></div></div><span class="score-value">3</span></div>
+                <div class="score-row"><span class="score-label">Alibi ❌</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Physical</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:20%;background:#555;"></div></div><span class="score-value">2</span></div>
+                <div class="score-row"><span class="score-label">Evidence</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:20%;background:#555;"></div></div><span class="score-value">2</span></div>
+                <div class="score-row"><span class="score-label">Witness</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:10%;background:#333;"></div></div><span class="score-value">1</span></div>
+                <div class="score-row"><span class="score-label">Post-Murder</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+                <div class="score-row"><span class="score-label">Cover-Up</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:40%;background:#555;"></div></div><span class="score-value">4</span></div>
+                <div class="score-row"><span class="score-label">Network</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:70%;background:#f59e0b;"></div></div><span class="score-value">7</span></div>
+            </div>
+            <div class="reasoning">
+                <strong>⚠ Warning: Officially not alive at time of murder.</strong> Christer Poka (b. March 1961, Ängelholm) officially disappeared in summer 1985 in France while mountain climbing near Mont Blanc. He is missing and has never been found. The murder occurred in February 1986 — i.e. 6–8 months <em>after</em> his official disappearance. This makes him an extremely unusual suspect: if he was involved, he must have either (a) been alive and operating under a new identity, or (b) recruited Ingerwald <em>before</em> he disappeared as early planning for the assassination.<br><br>
+                <strong>The Ingerwald testimony:</strong> Paratrooper Håkan Ingerwald (b. ca 1954) testified in 2012 before the Palme investigation's Criminal Inspector Lennart Gustafsson that during a military exercise he had been asked if he could consider murdering Olof Palme. He identified the person who asked as likely being Christer Poka. Ingerwald later retracted his testimony. Ingerwald had a dramatic "disappearance" on February 28, 2012 — exactly 26 years after the murder — and was found 140 km from home with his hands taped with silver tape. He claimed kidnapping, then that he had faked it himself. <span class="key-point">Weapon: 5 (↓ from 6)</span> — Poka was a trained paratrooper at FJS Karlsborg, UN veteran (Lebanon, Cyprus), weapons expert. No registered weapons — downgraded as no confirmed weapon ownership of murder weapon caliber. <span class="key-point">Network: 7</span> — Utbildad av Lars Nilsson (Lieutenant X) vid Karlsborg. Kopplad till samma militärövningsnätverk. Polisaspirant vid mordtillfället (om vid liv). <span class="key-point">Alibi: 7</span> — He officially does not exist in 1986; i.e. no alibi, no registered address, no civil registration.<br><br>
+                <strong>Why low score:</strong> <span class="key-point">Opportunity: 3</span> — Officially disappeared, no confirmed presence in Stockholm. <span class="key-point">Physical: 2</span> — No matching against witness descriptions possible. <span class="key-point">Evidence: 2</span> — Only evidence is a retracted testimony from a mentally unstable person (Ingerwald is described in the investigation as "unstable"). Poka's existence after 1985 is not substantiated.<br><br>
+                <strong>Why included:</strong> The connection to Lieutenant X (trainer), to the Gotland exercise network, and the fact that the Palme investigation actively investigated his role (interrogation heavily redacted) makes him a person who cannot be dismissed. If he was alive in 1986 and operating within the military network, the picture changes radically.
+            </div>
+        </div>
+
+    </div>
+
+    <h2 style="font-size:14px; color:#ff6666; letter-spacing:2px; text-transform:uppercase; margin-bottom:20px; margin-top: 40px;">— Machine Conclusion —</h2>
+
+    <div class="methodology">
+        <strong>Primary finding:</strong> If the murder was executed by a single shooter acting alone or as designated trigger man within a conspiracy, <strong style="color:#ff4444;">C-G Östling (83/100)</strong> scores highest due to the convergence of weapon expertise (though not confirmed ownership of murder weapon caliber), lack of alibi, physical placement near the murder scene by taxi witness, documented Palme hatred, and the systematic cover-up of all evidence pointing at him. His weapon score was downgraded from 10 to 8 following confirmation that he did not own a registered .357 Magnum — only ammunition of that caliber was found.<br><br>
+
+        <strong>⬆⬆ Christer A. — the most important reassessment (75/100 — "The only one with the right weapon"):</strong> <strong style="color:#ff8844;">Christer A. / GH</strong> rises sharply to #2 as the <em>only</em> person in the entire investigation with confirmed ownership of the murder weapon's caliber (.357 Magnum). He is the only suspect with five maximum scores (10): Motive, Weapon, Opportunity, Alibi, and Post-Murder Behavior. New detailed information reveals an extraordinary post-murder behavioral pattern: he abruptly stopped shooting on the murder night, missed the board meeting the day after DN reported on police collection of .357 owners, <strong>refused to surrender the weapon</strong>, fabricated an implausible sale story, became a regular at a café opposite the murder scene <em>after</em> moving away from the city, returned to the murder scene on the tenth anniversary (as the perpetrator profile predicted), and took his own life when police knocked on his door in 2008. His only decisive weakness: no witnesses place him at the murder scene. His profile points unequivocally toward a <em>lone actor</em>. The loneliness (complete loner without social relationships) paradoxically explains why the murder was never solved — there was no one to leak to.<br><br>
+
+        <strong>Weapon caliber recalculation:</strong> All suspects' Weapon scores have been recalibrated following the determination that <strong>only Christer A. owned a registered weapon of the murder weapon's caliber (.357 Magnum)</strong>. This correction affects Östling (10→8), Nilsson (10→7), Enerström (9→7), Wedin (7→6), Avsan (7→6), Gunnarsson (4→3), and Poka (6→5). The recalibration does not reduce their weapons <em>skill</em> or <em>training</em> but reflects the critical distinction between capability and confirmed access to the right weapon.<br><br>
+
+        <strong>Lars Nilsson / Lieutenant X (74/100):</strong> Remains the strongest military candidate — with extraordinary weapons skill, unverified alibi for murder night, and the timing of Exercise Gustav. <strong>The TV4 documentary "The Hidden Tracks of the Palme Murder" (Feb 28, 2026)</strong> focuses on Nilsson as its main figure. Weapon score downgraded (10→7) as he had no confirmed .357 Magnum ownership.<br><br>
+
+        <strong>Enerström (73/100):</strong> After alibi demolition by Gio Petre, <strong style="color:#f59e0b;">Alf Enerström</strong> remains significant. His S&amp;W ownership is confirmed by Gio Petre but not confirmed as .357 caliber (weapon score 9→7). His profile is most consistent with <em>weapon supplier + post-murder logistics</em>.<br><br>
+
+        <strong>Critical observation:</strong> Anti Avsan's score pattern (high on witness placement, low on physical match as shooter) remains most consistent with the role of <strong>spotter/coordinator</strong> — the man at Dekorima with the walkie-talkie directing the operation, not the man who pulled the trigger.<br><br>
+
+        <strong>The two paradigms:</strong> This analysis now reveals two fundamentally different models for the murder: (1) <strong>Conspiracy model</strong> — Östling (shooter or coordinator) + Avsan (spotter) + Enerström (weapon supplier) + military/SA network (backing). Strength: witness testimony, cover-up patterns, organizational depth. Weakness: no confirmed murder weapon. (2) <strong>Lone actor model</strong> — Christer A. acted alone, triggered by acute personal financial loss combined with ideological hatred. Strength: the <em>only</em> confirmed .357 Magnum owner, perfect post-murder behavioral pattern, profile match. Weakness: no witness placement. The two models are not necessarily mutually exclusive — Christer A. was a member of the same Defense Shooting Association as Östling.<br><br>
+
+        <strong>SA thread note:</strong> Bertil Wedin scores highest on <em>Network</em> (10) and <em>Post-Murder behavior</em> (9), making him the strongest candidate as <strong>operational manager</strong>. The SA thread and the police thread are not mutually exclusive.<br><br>
+
+        <strong>Christer Poka — person of interest (43/100 ⚠):</strong> Officially disappeared since 1985. Included as a network bridge rather than a probable trigger man. Weapon score downgraded (6→5) — no confirmed weapon ownership.
+    </div>
+
+    <div class="disclaimer">
+        ⚠ <strong>DISCLAIMER:</strong> This is a probability-weighted analysis based on documented evidence in The Palme Files network. It is NOT an accusation. No person on this list has been convicted. Several are deceased. The scoring reflects pattern analysis of available data points only. The actual truth may involve persons not yet identified, or combinations of persons acting in different roles. The murder of Olof Palme remains officially unsolved.
+    </div>
+
+</body>
+</html>
